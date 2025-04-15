@@ -1,0 +1,15 @@
+pytz
+protobuf~=5.29.3
+
+scipy
+numpy
+pandas
+matplotlib
+pillow
+mplfinance
+
+aiogram
+discord.py
+
+backtrader
+yadisk
