@@ -53,11 +53,11 @@ class Tinkoff(Broker):
         si = self.provider.get_symbol_info(class_code, security_code)  # Информация о тикере
         time_frame, intraday = self.provider.timeframe_to_tinkoff_timeframe(tf)  # Временной интервал Tinkoff, внутридневной интервал
         _, td = self.provider.tinkoff_timeframe_to_timeframe(time_frame)  # Временной интервал для имени файла и максимальный период запроса
-        next_bar_open_utc = self.provider.msk_to_utc_datetime(dt_from, True)  # Первый возможный бар по UTC
+        next_bar_open_utc = None if dt_from is None else self.provider.msk_to_utc_datetime(dt_from, True)  # Первый возможный бар по UTC
         if next_bar_open_utc is None:  # Если он не задан, то возьмем
             next_bar_open_utc = datetime.fromtimestamp(si.first_1min_candle_date.seconds, timezone.utc) if intraday else \
                 datetime.fromtimestamp(si.first_1day_candle_date.seconds, timezone.utc)  # Первый минутный/дневной бар истории
-        todate_utc = datetime.utcnow().replace(tzinfo=timezone.utc)  # Будем получать бары до текущей даты и времени UTC
+        todate_utc = datetime.utcnow().replace(tzinfo=timezone.utc) if dt_to is None else self.provider.msk_to_utc_datetime(dt_to, True)  # Последний возможный бар по UTC
         bars = []  # Список полученных бар
         while True:  # Будем получать бары пока не получим все
             request = GetCandlesRequest(instrument_id=si.figi, interval=time_frame)  # Запрос на получение бар
