@@ -1,6 +1,7 @@
 from lightweight_charts import Chart  # pip install lightweight-charts
 
 from FinLabPy.Config import brokers, default_broker  # Все брокеры и брокер по умолчанию
+from FinLabPy.Core import bars_to_df  # Перевод бар в pandas DataFrame
 
 
 if __name__ == '__main__':  # Точка входа при запуске этого скрипта
@@ -10,7 +11,7 @@ if __name__ == '__main__':  # Точка входа при запуске это
     broker = default_broker  # Брокер по умолчанию
     # broker = brokers['Т']  # Брокер по ключу из Config.py словаря brokers
     bars = broker.get_history(dataname, time_frame)  # Получаем всю историю тикера
-    pd_bars = broker.bars_to_df(bars)  # Бары в pandas DataFrame
+    pd_bars = bars_to_df(bars)  # Бары в pandas DataFrame
 
     chart = Chart(toolbox=True)  # График с элементами рисования
     chart.legend(True)  # В верхнем левом углу отображаются значения по указателю мыши

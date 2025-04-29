@@ -4,7 +4,7 @@ from time import time
 import os.path
 
 from FinLabPy.Config import brokers, default_broker  # Все брокеры и брокер по умолчанию
-from FinLabPy.Core import Broker  # Класс брокера
+from FinLabPy.Core import Broker, bars_to_df  # Класс брокера, перевод бар в pandas DataFrame
 
 from pytz import timezone  # ВременнАя зона МСК
 import pandas as pd
@@ -55,7 +55,7 @@ def get_bars_from_broker(broker, dataname, time_frame, dt_from=None, dt_to=None)
     :param datetime dt_to: Начало запроса по МСК
     """
     logger.info(f'Получение истории из брокера {broker.__class__.__name__}')
-    pd_bars = broker.bars_to_df(broker.get_history(dataname, time_frame, dt_from, dt_to))
+    pd_bars = bars_to_df(broker.get_history(dataname, time_frame, dt_from, dt_to))
     if len(pd_bars) == 0:  # Если новых бар нет
         logger.info('Новых бар нет')
         return pd.DataFrame()

@@ -10,8 +10,8 @@ from QuikPy import QuikPy  # Работа с QUIK из Python через LUA с�
 class Quik(Broker):
     """Брокер QUIK"""
 
-    def __init__(self, code: str, name: str, provider: QuikPy, account_id: int = 0, limit_kind: int = 1, lots=True):
-        super().__init__(code, name, provider, account_id)
+    def __init__(self, code: str, name: str, provider: QuikPy, account_id: int = 0, limit_kind: int = 1, lots=True, storage: str = 'file'):
+        super().__init__(code, name, provider, account_id, storage)
         self.provider = provider  # Уже инициирован в базовом классе. Выполням для того, чтобы работать с типом провайдера
         self.provider.on_new_candle = self.qk_new_bar  # Обработчик получения новой свечки
         self.provider.on_trans_reply = self.on_trans_reply  # Ответ на транзакцию пользователя. Если транзакция выполняется из QUIK, то не вызывается

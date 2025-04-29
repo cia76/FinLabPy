@@ -10,8 +10,8 @@ class Finam(Broker):
     """Брокер Финам"""
     min_bar_open_utc = datetime(1990, 1, 1, tzinfo=timezone.utc)  # Дата, когда никакой тикер еще не торговался
 
-    def __init__(self, code: str, name: str, provider: FinamPyOld, account_id: int = 0):
-        super().__init__(code, name, provider, account_id)
+    def __init__(self, code: str, name: str, provider: FinamPyOld, account_id: int = 0, storage: str = 'file'):
+        super().__init__(code, name, provider, account_id, storage)
         self.provider = provider  # Уже инициирован в базовом классе. Выполням для того, чтобы работать с типом провайдера
         self.client_id = self.provider.client_ids[account_id]  # Номер счета по порядковому номеру
         self.symbols = self.provider.symbols  # Получаем справочник всех тикеров из провайдера

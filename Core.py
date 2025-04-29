@@ -9,7 +9,7 @@ import pandas as pd
 
 class Symbol:
     """Тикер"""
-    def __init__(self, board: str, symbol: str, dataname: str, description: str, decimals: int, min_step: float, lot_size: int):
+    def __init__(self, board: str, symbol: str, dataname: str, description: str, decimals: int, min_step: float, lot_size: int, broker_info=None):
         self.board = board  # Код режима торгов
         self.symbol = symbol  # Тикер
         self.dataname = dataname  # Название тикера
@@ -17,6 +17,7 @@ class Symbol:
         self.decimals = decimals  # Кол-во десятичных знаков в цене
         self.min_step = min_step  # Минимальный шаг цены
         self.lot_size = lot_size  # Кол-во штук в лоте
+        self.broker_info = broker_info  # Информация от брокера, позволяющая идентифицировать тикер. Доп. информация о тикере
 
     def __repr__(self):
         return f'{self.dataname} ({self.description}) Лот: {self.lot_size}, Шаг цены: {self.min_step}, Кол-во десятичных знаков: {self.decimals}'
@@ -98,12 +99,23 @@ class Position:
 # noinspection PyShadowingBuiltins
 class Broker:
     """Брокер"""
-    def __init__(self, code: str, name: str, provider, account_id: int = 0):
+    def __init__(self, code: str, name: str, provider, account_id: int = 0, storage: str = 'file'):
         self.code = code  # Код брокера
         self.name = name  # Название провайдера
-        self.provider = provider  # Провайдер QuikPy/AlorPy/FinamPy/TinkoffPy
+        self.provider = provider  # Провайдер
         self.account_id = account_id  # Порядковый номер счета
-        self.symbols = {}  # Информация о тикерах без унификации (в том виде, который выдает провайдер)
+        if storage == 'file':  # Если файловое хранилище
+            from FinLabPy.Storage.FileStorage import FileStorage as storage  # то ипортируем библиотеку файлового хранилища
+            self.storage = storage(self.__class__.__name__)  # Инициализируем хранилище
+        elif storage == 'db':  # Если хранилище в БД
+            try:
+                from FinLabPy.Storage.SQLiteStorage import SQLiteStorage as storage  # Пытаемся импортировать библиотеку Курса Базы данных для трейдеров https://finlab.vip/wpm-category/databases/
+                self.storage = storage()  # Инициализируем хранилище
+            except ModuleNotFoundError:  # Если библиотека не найдена
+                from FinLabPy.Storage.FileStorage import FileStorage as storage  # то ипортируем библиотеку файлового хранилища
+                self.storage = storage(self.__class__.__name__)  # Инициализируем хранилище
+        else:  # В остальных случаях
+            from FinLabPy.Storage.FileStorage import FileStorage as storage  # то ипортируем библиотеку файлового хранилища
         self.positions: list[Position] = []  # Текущие позиции
         self.orders: list[Order] = []  # Активные заявки
 
@@ -116,14 +128,9 @@ class Broker:
         """Название тикера из кода режима торгов и тикера"""
         return f'{board}.{symbol}'
 
-    def get_history(self, dataname: str, time_frame: str, dt_from: datetime = None, dt_to: datetime = None) -> Union[list[Bar], None]:
+    def get_history(self, symbol: Symbol, time_frame: str, dt_from: datetime = None, dt_to: datetime = None) -> Union[list[Bar], None]:
         """История тикера"""
-        raise NotImplementedError
-
-    @staticmethod
-    def bars_to_df(bars: list[Bar]) -> pd.DataFrame:
-        """Перевод списка бар в pandas DataFrame с индексом по дате/времени бара"""
-        return pd.DataFrame.from_records([bar.to_dict() for bar in bars], index='datetime')  # Переводим в pandas DataFrame
+        return self.storage.get_bars(symbol, time_frame, dt_from, dt_to)
 
     def subscribe_history(self, dataname: str, time_frame: str) -> None:
         """Подписка на историю тикера"""
@@ -164,3 +171,33 @@ class Broker:
     def close(self) -> None:
         """Закрытие провайдера"""
         raise NotImplementedError
+
+
+class Storage:
+    """Хранилище бар и спецификации тикеров брокера"""
+    def __init__(self, source: str):
+        self.source = source  # Источник хранилища
+        self.symbols: dict[str, Symbol] = {}  # Словать тикеров
+
+    def get_symbol(self, dataname: str) -> Union[Symbol, None]:
+        """Получение тикера"""
+        return self.symbols[dataname] if dataname in self.symbols else None  # Пробуем получить тикер по названию из словаря
+
+    def set_symbol(self, symbol: Symbol) -> None:
+        """Сохранение тикера"""
+        self.symbols[symbol.dataname] = symbol  # Добавляем/изменяем тикер в словаре
+
+    def get_bars(self, symbol: Symbol, time_frame: str, dt_from: datetime = None, dt_to: datetime = None) -> Union[list[Bar], None]:
+        """Получение бар"""
+        raise NotImplementedError
+
+    def set_bars(self, bars: list[Bar]) -> None:
+        """Сохранение бар"""
+        raise NotImplementedError
+
+
+def bars_to_df(bars: list[Bar]) -> pd.DataFrame:
+    """Перевод списка бар в pandas DataFrame с индексом по дате/времени бара"""
+    pd_bars = pd.DataFrame.from_records([bar.to_dict() for bar in bars], index='datetime')  # Переводим в pandas DataFrame
+    pd_bars['volume'] = pd_bars['volume'].astype(int)  # Объемы могут быть только целыми
+    return pd_bars

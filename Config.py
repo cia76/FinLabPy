@@ -20,17 +20,19 @@ tp_provider = TinkoffPy()  # Провайдер Т-Инвестиции. Для 
 # qp_provider = QuikPy()  # Провайдер QUIK
 
 # Брокеры
+storage = 'file'  # Файловое хранилище
+# storage = 'db'  # Курс Базы данных для трейдеров https://finlab.vip/wpm-category/databases/
 brokers = {
-    'АС': Alor(code='АС', name='Алор - Срочный рынок', provider=ap_provider, account_id=0),  # Алор - Портфель срочного рынка
-    'АФ': Alor(code='АФ', name='Алор - Фондовый рынок', provider=ap_provider, account_id=1),  # Алор - Портфель фондового рынка
-    # 'АВ': Alor(code='АВ', name='Алор - Валютный рынок', provider=ap_provider, account_id=2),  # Алор - Портфель валютного рынка
-    # 'ИС': Alor(code='ИС', name='Алор ИИС - Срочный рынок', provider=ap_provider, account_id=3),  # Алор ИИС - Портфель срочного рынка
-    'ИФ': Alor(code='ИФ', name='Алор ИИС - Фондовый рынок', provider=ap_provider, account_id=4),  # Алор ИИС - Портфель фондового рынка
-    # 'ИВ': Alor(code='ИВ', name='Алор ИИС - Валютный рынок', provider=ap_provider, account_id=5),  # Алор ИИС - Портфель валютного рынка
-    'Ф': Finam(code='Ф', name='Финам', provider=fp_provider),  # Финам
-    'Т': Tinkoff(code='Т', name='Т-Инвестиции', provider=tp_provider),  # Т-Инвестиции
-    # 'КС': Quik(code='КС', name='QUIK - Срочный рынок', provider=qp_provider, account_id=0),  # QUIK - Портфель срочного рынка
-    # 'КФ': Quik(code='КФ', name='QUIK - Фондовый рынок', provider=qp_provider, account_id=1),  # QUIK - Портфель фондового рынка
-    # 'КВ': Quik(code='КВ', name='QUIK - Валютный рынок', provider=qp_provider, account_id=2),  # QUIK - Портфель валютного рынка
+    'АС': Alor(code='АС', name='Алор - Срочный рынок', provider=ap_provider, account_id=0, storage=storage),  # Алор - Портфель срочного рынка
+    'АФ': Alor(code='АФ', name='Алор - Фондовый рынок', provider=ap_provider, account_id=1, storage=storage),  # Алор - Портфель фондового рынка
+    # 'АВ': Alor(code='АВ', name='Алор - Валютный рынок', provider=ap_provider, account_id=2, storage=storage),  # Алор - Портфель валютного рынка
+    # 'ИС': Alor(code='ИС', name='Алор ИИС - Срочный рынок', provider=ap_provider, account_id=3, storage=storage),  # Алор ИИС - Портфель срочного рынка
+    'ИФ': Alor(code='ИФ', name='Алор ИИС - Фондовый рынок', provider=ap_provider, account_id=4, storage=storage),  # Алор ИИС - Портфель фондового рынка
+    # 'ИВ': Alor(code='ИВ', name='Алор ИИС - Валютный рынок', provider=ap_provider, account_id=5, storage=storage),  # Алор ИИС - Портфель валютного рынка
+    'Ф': Finam(code='Ф', name='Финам', provider=fp_provider, storage=storage),  # Финам
+    'Т': Tinkoff(code='Т', name='Т-Инвестиции', provider=tp_provider, storage=storage),  # Т-Инвестиции
+    # 'КС': Quik(code='КС', name='QUIK - Срочный рынок', provider=qp_provider, account_id=0, storage=storage),  # QUIK - Портфель срочного рынка
+    # 'КФ': Quik(code='КФ', name='QUIK - Фондовый рынок', provider=qp_provider, account_id=1, storage=storage),  # QUIK - Портфель фондового рынка
+    # 'КВ': Quik(code='КВ', name='QUIK - Валютный рынок', provider=qp_provider, account_id=2, storage=storage),  # QUIK - Портфель валютного рынка
 }
 default_broker = brokers['АС']  # Брокер по умолчанию для выполнения технических операций
