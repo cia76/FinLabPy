@@ -1,6 +1,7 @@
 # Курс Мультиброкер: Контроль https://finlab.vip/wpm-category/mbcontrol/
 
 from datetime import datetime
+from typing import Union  # Объединение типов
 import itertools  # Итератор для уникальных номеров транзакций
 
 from FinLabPy.Core import Broker, Position, Symbol, Order, Bar  # Брокер, позиция, заявка, тикер
@@ -13,24 +14,54 @@ class Quik(Broker):
     def __init__(self, code: str, name: str, provider: QuikPy, account_id: int = 0, limit_kind: int = 1, lots=True, storage: str = 'file'):
         super().__init__(code, name, provider, account_id, storage)
         self.provider = provider  # Уже инициирован в базовом классе. Выполням для того, чтобы работать с типом провайдера
-        self.provider.on_new_candle = self.qk_new_bar  # Обработчик получения новой свечки
-        self.provider.on_trans_reply = self.on_trans_reply  # Ответ на транзакцию пользователя. Если транзакция выполняется из QUIK, то не вызывается
+        self.provider.on_new_candle = self._new_bar  # Обработчик получения новой свечки
+        self.provider.on_trans_reply = self._trans_reply  # Ответ на транзакцию пользователя. Если транзакция выполняется из QUIK, то не вызывается
         self.account = next((account for account in self.provider.accounts if account['account_id'] == account_id), self.provider.accounts[0])  # Счет
         self.limit_kind = limit_kind  # Срок расчетов
         self.lots = lots  # Входящий остаток в лотах (задается брокером)
         self.class_codes = self.provider.get_classes_list()['data']  # Режимы торгов через запятую
         self.trans_id = itertools.count(1)  # Номер транзакции задается пользователем. Он будет начинаться с 1 и каждый раз увеличиваться на 1
 
+    def _get_symbol_info(self, class_code, sec_code) -> Union[Symbol, None]:
+        si = self.provider.get_symbol_info(class_code, sec_code)  # Спецификация тикера
+        if not si:  # Если тикер не найден
+            print(f'Информация о тикере {class_code}.{sec_code} не найдена')
+            return None  # То выходим, дальше не продолжаем
+        dataname = self.provider.class_sec_codes_to_dataname(si.board, si.ticker)  # Название тикера
+        symbol = Symbol(class_code, sec_code, dataname, si['short_name'], si['scale'], si['min_price_step'], si['lot_size'])
+        self.storage.set_symbol(symbol)  # Добавляем спецификацию тикера в хранилище
+        return symbol
+
+    def _new_bar(self, data):
+        """Разбор получения нового бара"""
+        bar = data['data']  # Данные бара
+        class_code = bar['class']  # Код режима торгов
+        sec_code = bar['sec']  # Тикер
+        dataname = self.provider.class_sec_codes_to_dataname(class_code, sec_code)  # Название тикера
+        time_frame, _ = self.provider.quik_timeframe_to_timeframe(bar['interval'])  # Временной интервал
+        dt_json = bar['datetime']  # Получаем составное значение даты и времени открытия бара
+        dt = datetime(dt_json['year'], dt_json['month'], dt_json['day'], dt_json['hour'], dt_json['min'])  # Время открытия бара
+        self.on_new_bar(Bar(class_code, sec_code, dataname, time_frame, dt, bar['open'], bar['high'], bar['low'], bar['close'], int(bar['volume'])))  # Вызываем событие добавления нового бара
+
+    def _trans_reply(self, data):
+        """Разбор получения ответа на транзакцию пользователя"""
+        trans_id = data['data']['trans_id']  # Номер транзакции
+        order_num = data['data']['order_num']  # Номер заявки
+        order = next((order for order in self.orders if order.id == trans_id), None)  # Ищем заявку по номеру транзакции
+        if not order:  # Если заявка не найдена
+            print(f'Заявка {order_num} с номером транзакции {trans_id} не найдена')
+            return  # то выходим, дальше не продолжаем
+        order.id = order_num  # Ставим номер заявки
+
     def get_symbol_by_dataname(self, dataname: str):
+        symbol = self.storage.get_symbol(dataname)  # Проверяем, есть ли спецификация тикера в хранилище
+        if symbol is not None:  # Если есть тикер
+            return symbol  # то возвращаем его, дальше не продолжаем
         class_code, sec_code = self.provider.dataname_to_class_sec_codes(dataname)  # Код режима торгов и тикер
         if not class_code:  # Если код режима торгов не найден
             print(f'Код режима торгов тикера {dataname} не найден')
             return None  # То выходим, дальше не продолжаем
-        si = self.provider.get_symbol_info(class_code, sec_code)  # Спецификация тикера
-        if not si:  # Если тикер не найден
-            print(f'Информация о тикере {dataname} не найдена')
-            return None  # То выходим, дальше не продолжаем
-        return Symbol(class_code, sec_code, dataname, si['short_name'], si['scale'], si['min_price_step'], si['lot_size'])
+        return self._get_symbol_info(class_code, sec_code)
 
     def get_history(self, dataname: str, tf: str, dt_from: datetime = None, dt_to: datetime = None):
         class_code, security_code = self.provider.dataname_to_class_sec_codes(dataname)  # Код режима торгов и тикер из названия тикера
@@ -56,16 +87,6 @@ class Quik(Broker):
         class_code, security_code = self.provider.dataname_to_class_sec_codes(dataname)  # Код режима торгов и тикер из названия тикера
         interval, _ = self.provider.timeframe_to_quik_timeframe(time_frame)  # Временной интервал QUIK
         self.provider.subscribe_to_candles(class_code, security_code, interval)  # Подписываемся на бары
-
-    def qk_new_bar(self, data):
-        bar = data['data']  # Данные бара
-        class_code = bar['class']  # Код режима торгов
-        sec_code = bar['sec']  # Тикер
-        dataname = self.provider.class_sec_codes_to_dataname(class_code, sec_code)  # Получаем название тикера по коду режима торгов и тикера
-        time_frame, _ = self.provider.quik_timeframe_to_timeframe(bar['interval'])  # Временной интервал
-        dt_json = bar['datetime']  # Получаем составное значение даты и времени открытия бара
-        dt = datetime(dt_json['year'], dt_json['month'], dt_json['day'], dt_json['hour'], dt_json['min'])  # Время открытия бара
-        self.on_new_bar(Bar(class_code, sec_code, dataname, time_frame, dt, bar['open'], bar['high'], bar['low'], bar['close'], int(bar['volume'])))  # Вызываем событие добавления нового бара
 
     def get_last_price(self, dataname: str):
         si = self.get_symbol_by_dataname(dataname)  # Тикер по названию
@@ -122,18 +143,17 @@ class Quik(Broker):
             for active_futures_holding in active_futures_holdings:  # Пробегаемся по всем активным фьючерсным позициям
                 class_code = 'SPBFUT'  # Код режима торгов
                 sec_code = active_futures_holding['sec_code']  # Код тикера
-                dataname = self.provider.class_sec_codes_to_dataname(class_code, sec_code)  # Получаем название тикера по коду режима торгов и тикера
+                symbol = self._get_symbol_info(class_code, sec_code)  # Спецификация тикера
                 size = active_futures_holding['totalnet']  # Кол-во
-                si = self.provider.get_symbol_info(class_code, sec_code)  # Спецификация тикера
                 if self.lots:  # Если входящий остаток в лотах
-                    size *= si['lot_size']  # то переводим кол-во из лотов в штуки
+                    size *= symbol.lot_size  # то переводим кол-во из лотов в штуки
                 entry_price = self.provider.quik_price_to_price(class_code, sec_code, float(active_futures_holding['avrposnprice']))  # Цена входа в рублях за штуку
                 last_price = self.provider.quik_price_to_price(class_code, sec_code, float(self.provider.get_param_ex(class_code, sec_code, 'LAST')['data']['param_value']))  # Последняя цена сделки в рублях за штуку
                 self.positions.append(Position(  # Добавляем текущую позицию в список
                     self,  # Брокер
-                    dataname,  # Название тикера
-                    si['short_name'],  # Описание тикера
-                    si['scale'],  # Кол-во десятичных знаков в цене
+                    symbol.dataname,  # Название тикера
+                    symbol.description,  # Описание тикера
+                    symbol.decimals,  # Кол-во десятичных знаков в цене
                     size,  # Кол-во в штуках
                     entry_price,  # Средняя цена входа в рублях
                     last_price))  # Последняя цена в рублях
@@ -145,20 +165,19 @@ class Quik(Broker):
                                      depo_limit['limit_kind'] == self.limit_kind and  # и дню лимита
                                      depo_limit['currentbal'] != 0]  # только открытые позиции
             for firm_kind_depo_limit in firm_kind_depo_limits:  # Пробегаемся по всем позициям
-                sec_code = firm_kind_depo_limit["sec_code"]  # Код тикера
+                sec_code = firm_kind_depo_limit['sec_code']  # Код тикера
                 class_code = self.provider.get_security_class(self.class_codes, sec_code)['data']  # Код режима торгов из режимов торгов счета
-                dataname = self.provider.class_sec_codes_to_dataname(class_code, sec_code)  # Получаем название тикера по коду режима торгов и тикера
+                symbol = self._get_symbol_info(class_code, sec_code)  # Спецификация тикера
                 size = int(firm_kind_depo_limit['currentbal'])  # Кол-во
-                si = self.provider.get_symbol_info(class_code, sec_code)  # Спецификация тикера
                 if self.lots:  # Если входящий остаток в лотах
-                    size *= si['lot_size']  # то переводим кол-во из лотов в штуки
+                    size *= symbol.lot_size  # то переводим кол-во из лотов в штуки
                 entry_price = self.provider.quik_price_to_price(class_code, sec_code, float(firm_kind_depo_limit["wa_position_price"]))  # Цена входа в рублях за штуку
                 last_price = self.provider.quik_price_to_price(class_code, sec_code, float(self.provider.get_param_ex(class_code, sec_code, 'LAST')['data']['param_value']))  # Последняя цена сделки в рублях за штуку
                 self.positions.append(Position(  # Добавляем текущую позицию в список
                     self,  # Брокер
-                    dataname,  # Название тикера
-                    si['short_name'],  # Описание тикера
-                    si['scale'],  # Кол-во десятичных знаков в цене
+                    symbol.dataname,  # Название тикера
+                    symbol.description,  # Описание тикера
+                    symbol.decimals,  # Кол-во десятичных знаков в цен
                     size,  # Кол-во в штуках
                     entry_price,  # Средняя цена входа в рублях
                     last_price))  # Последняя цена в рублях
@@ -171,37 +190,35 @@ class Quik(Broker):
             buy = firm_order['flags'] & 0b100 != 0b100  # Заявка на покупку
             class_code = firm_order['class_code']  # Код режима торгов
             sec_code = firm_order["sec_code"]  # Тикер
-            dataname = self.provider.class_sec_codes_to_dataname(class_code, sec_code)  # Получаем название тикера по коду режима торгов и тикера
+            symbol = self._get_symbol_info(class_code, sec_code)  # Спецификация тикера
             order_price = self.provider.quik_price_to_price(class_code, sec_code, firm_order['price'])  # Цена заявки в рублях за штуку
-            si = self.provider.get_symbol_info(class_code, sec_code)  # Спецификация тикера
-            order_qty = firm_order['qty'] * si['lot_size']  # Кол-во в штуках
             self.orders.append(Order(  # Добавляем заявки в список
                 self,  # Брокер
                 firm_order['order_num'],  # Уникальный код заявки
                 buy,  # Покупка/продажа
                 Order.Limit if order_price else Order.Market,  # Лимит/по рынку. Для фьючерсов задается текущая рыночная цена. Все заявки по ним будут лимитные
-                dataname,  # Название тикера
-                si.decimals,  # Кол-во десятичных знаков в цене
-                order_qty,  # Кол-во в штуках
-                order_price))  # Цена заявки
+                symbol.dataname,  # Название тикера
+                symbol.decimals,  # Кол-во десятичных знаков в цене
+                firm_order['qty'] * symbol.lot_size,  # Кол-во в штуках
+                order_price))  # Цена
         firm_stop_orders = [stopOrder for stopOrder in self.provider.get_all_stop_orders()['data'] if stopOrder['firmid'] == self.account['firm_id'] and stopOrder['flags'] & 0b1 == 0b1]  # Активные стоп заявки по фирме
         for firm_stop_order in firm_stop_orders:  # Пробегаемся по всем стоп заявкам
             buy = firm_stop_order['flags'] & 0b100 != 0b100  # Заявка на покупку
             class_code = firm_stop_order['class_code']  # Код режима торгов
             sec_code = firm_stop_order['sec_code']  # Тикер
-            dataname = self.provider.class_sec_codes_to_dataname(class_code, sec_code)  # Получаем название тикера по коду режима торгов и тикера
-            stop_order_price = self.provider.quik_price_to_price(class_code, sec_code, firm_stop_order['price'])  # Цена срабатывания стоп заявки в рублях за штуку
-            si = self.provider.get_symbol_info(class_code, sec_code)  # Спецификация тикера
-            stop_order_qty = firm_stop_order['qty'] * si['lot_size']  # Кол-во в штуках
+            symbol = self._get_symbol_info(class_code, sec_code)  # Спецификация тикера
+            condition_price = self.provider.quik_price_to_price(class_code, sec_code, firm_stop_order['condition_price'])  # Цена срабатывания стоп заявки в рублях за штуку
+            order_price = self.provider.quik_price_to_price(class_code, sec_code, firm_stop_order['price'])  # Цена заявки в рублях за штуку
             self.orders.append(Order(  # Добавляем заявки в список
                 self,  # Брокер
                 firm_stop_order['order_num'],  # Уникальный код заявки
                 buy,  # Покупка/продажа
-                Order.Limit if stop_order_price else Order.Market,  # Лимит/по рынку
-                dataname,  # Название тикера
-                si.decimals,  # Кол-во десятичных знаков в цене
-                stop_order_qty,  # Кол-во в штуках
-                stop_order_price))  # Цена заявки
+                Order.Stop if order_price else Order.Limit,  # Лимит/по рынку
+                symbol.dataname,  # Название тикера
+                symbol.decimals,  # Кол-во десятичных знаков в цене
+                firm_stop_order['qty'] * symbol.lot_size,  # Кол-во в штуках
+                order_price,  # Цена
+                condition_price))  # Цена срабатывания
         return self.orders
 
     def new_order(self, order: Order):
@@ -239,16 +256,6 @@ class Quik(Broker):
             'SECCODE': sec_code,  # Код тикера
             order_key: order.id}  # Номер заявки
         self.provider.send_transaction(transaction)
-
-    def on_trans_reply(self, data):
-        """Обработчик события ответа на транзакцию пользователя"""
-        trans_id = data['data']['trans_id']  # Номер транзакции
-        order_num = data['data']['order_num']  # Номер заявки
-        order = next((order for order in self.orders if order.id == trans_id), None)  # Ищем заявку по номеру транзакции
-        if not order:  # Если заявка не найдена
-            print(f'Заявка {order_num} с номером транзакции {trans_id} не найдена')
-            return  # то выходим, дальше не продолжаем
-        order.id = order_num  # Ставим номер заявки
 
     def close(self):
         self.provider.close_connection_and_thread()  # Перед выходом закрываем соединение для запросов и поток обработки функций обратного вызова

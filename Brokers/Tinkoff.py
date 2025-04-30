@@ -23,13 +23,14 @@ from TinkoffPy.grpc.stoporders_pb2 import (
 
 class Tinkoff(Broker):
     """Брокер Т-Инвестиции"""
-    def __init__(self, code: str, name: str, provider: TinkoffPy, account_id: int = 0, storage: str = 'file'):
+    def __init__(self, code, name, provider: TinkoffPy, account_id=0, storage='file'):
         super().__init__(code, name, provider, account_id, storage)
         self.provider = provider  # Уже инициирован в базовом классе. Выполням для того, чтобы работать с типом провайдера
         self.provider.on_candle = self._new_bar  # Перехватываем управление события получения нового бара
         self.account_id = self.provider.accounts[account_id].id  # Номер счета по порядковому номеру
 
-    def _get_symbol_info(self, figi) -> Union[Symbol, None]:
+    def _get_symbol_info(self, figi: str) -> Union[Symbol, None]:
+        """Спецификация тикера по уникальному коду"""
         request = InstrumentRequest(id_type=InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI, class_code='', id=figi)  # Поиск тикера по уникальному коду
         response: InstrumentResponse = self.provider.call_function(self.provider.stub_instruments.GetInstrumentBy, request)  # Получаем информацию о тикере
         if not response:  # Если информация о тикере не найдена
@@ -45,7 +46,8 @@ class Tinkoff(Broker):
         return symbol
 
     def _new_bar(self, candle: Candle):
-        symbol = self._get_symbol_info(candle.figi)  # Спецификация тикера
+        """Разбор получения нового бара"""
+        symbol = self._get_symbol_info(candle.figi)  # Спецификация тикера по уникальному коду
         time_frame = self.provider.tinkoff_subscription_timeframe_to_timeframe(candle.interval)  # Временной интервал
         dt_msk = self.provider.utc_to_msk_datetime(datetime.utcfromtimestamp(candle.time.seconds))
         open_ = self.provider.quotation_to_float(candle.open)
@@ -75,14 +77,14 @@ class Tinkoff(Broker):
         return symbol
 
     def get_history(self, symbol, time_frame, dt_from: datetime = None, dt_to: datetime = None):
-        next_bar_open_utc = None if dt_from is None else self.provider.msk_to_utc_datetime(dt_from, True)  # Первый возможный бар по UTC
         bars = super().get_history(symbol, time_frame, dt_from, dt_to)  # Получаем бары из хранилища
+        next_bar_open_utc = None if dt_from is None else self.provider.msk_to_utc_datetime(dt_from, True)  # Первый возможный бар по UTC
         if bars is None:  # Если бары из хранилища не получены
             bars = []  # Пока список полученных бар пустой
         else:  # Если бары из хранилища получены
-            next_bar_open_utc = self.provider.msk_to_utc_datetime(bars[-1].datetime, True)  # Дата/время последнего полученого бара из хранилища
+            next_bar_open_utc = self.provider.msk_to_utc_datetime(bars[-1].datetime, True)  # Дата и время последнего полученого бара из хранилища по UTC
             del bars[-1]  # Этот бар удалим из выборки хранилища. Возможно, он был несформированный
-        tinkoff_time_frame, intraday = self.provider.timeframe_to_tinkoff_timeframe(time_frame)  # Временной интервал Tinkoff, внутридневной интервал
+        tinkoff_time_frame, intraday = self.provider.timeframe_to_tinkoff_timeframe(time_frame)  # Временной интервал Т-Инвестиции, внутридневной интервал
         _, td = self.provider.tinkoff_timeframe_to_timeframe(tinkoff_time_frame)  # Временной интервал для имени файла и максимальный период запроса
         if next_bar_open_utc is None:  # Если он не задан, то возьмем
             next_bar_open_utc = datetime.fromtimestamp(symbol.broker_info['first_1min_timestamp'], timezone.utc) if intraday else \
@@ -172,9 +174,7 @@ class Tinkoff(Broker):
         request = PortfolioRequest(account_id=self.account_id, currency=self.provider.currency)
         response: PortfolioResponse = self.provider.call_function(self.provider.stub_operations.GetPortfolio, request)  # Получаем портфель по счету
         for position in response.positions:  # Пробегаемся по всем активным позициям счета
-            symbol = self._get_symbol_info(position.figi)  # Поиск тикера по уникальному коду
-            if symbol is None:  # Если тикер не получен
-                continue  # то переходим на следующую позицию, дальше не продолжаем
+            symbol = self._get_symbol_info(position.figi)  # Спецификация тикера по уникальному коду
             if symbol.board == 'CETS':  # Валюты
                 continue  # за позиции не считаем
             self.positions.append(Position(  # Добавляем текущую позицию в список
@@ -192,9 +192,7 @@ class Tinkoff(Broker):
         request = GetOrdersRequest(account_id=self.account_id)
         response: GetOrdersResponse = self.provider.call_function(self.provider.stub_orders.GetOrders, request)  # Получаем активные заявки
         for order in response.orders:  # Пробегаемся по всем заявкам
-            symbol = self._get_symbol_info(order.figi)  # Поиск тикера по уникальному коду
-            if symbol is None:  # Если тикер не получен
-                continue  # то переходим к следующей заявке, дальше не продолжаем
+            symbol = self._get_symbol_info(order.figi)  # Спецификация тикера по уникальному коду
             self.orders.append(Order(  # Добавляем заявки в список
                 self,  # Брокер
                 order.order_id,  # Уникальный код заявки (номер транзакции)
@@ -207,9 +205,7 @@ class Tinkoff(Broker):
         request = GetStopOrdersRequest(account_id=self.account_id)
         response: GetStopOrdersResponse = self.provider.call_function(self.provider.stub_stop_orders.GetStopOrders, request)  # Получаем активные стоп заявки
         for stop_order in response.stop_orders:  # Пробегаемся по всем стоп заявкам
-            symbol = self._get_symbol_info(stop_order.figi)  # Поиск тикера по уникальному коду
-            if symbol is None:  # Если тикер не получен
-                continue  # то переходим к следующей заявке, дальше не продолжаем
+            symbol = self._get_symbol_info(stop_order.figi)  # Спецификация тикера по уникальному коду
             self.orders.append(Order(  # Добавляем заявки в список
                 self,  # Брокер
                 stop_order.stop_order_id,  # Уникальный код заявки (номер транзакции)
