@@ -72,6 +72,7 @@ class Alor(Broker):
             dt_msk = self.provider.utc_timestamp_to_msk_datetime(bar['time']) if intraday else datetime.utcfromtimestamp(bar['time'])  # Дневные бары и выше ставим на начало дня по UTC. Остальные - по МСК
             volume = bar['volume'] * symbol.lot_size  # Объем в штуках
             bars.append(Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame, dt_msk, bar['open'], bar['high'], bar['low'], bar['close'], volume))  # Добавляем бар
+        self.storage.set_bars(bars)  # Сохраняем бары в хранилище
         return bars
 
     def subscribe_history(self, dataname, time_frame):

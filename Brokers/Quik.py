@@ -81,6 +81,7 @@ class Quik(Broker):
             if dt_to and dt_to < dt:  # Если задана дата окончания, и она раньше даты и времени бара
                 continue  # то пропускаем этот бар
             bars.append(Bar(class_code, security_code, dataname, tf, dt, bar['open'], bar['high'], bar['low'], bar['close'], int(bar['volume'])))  # Добавляем бар
+        self.storage.set_bars(bars)  # Сохраняем бары в хранилище
         return bars
 
     def subscribe_history(self, dataname: str, time_frame: str):

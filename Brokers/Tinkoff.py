@@ -133,6 +133,7 @@ class Tinkoff(Broker):
         if len(bars) == 0:  # Если новых записей нет
             print('Новых записей нет')
             return None  # то выходим, дальше не продолжаем
+        self.storage.set_bars(bars)  # Сохраняем бары в хранилище
         return bars
 
     def subscribe_history(self, dataname, time_frame):

@@ -92,6 +92,7 @@ class Finam(Broker):
         if len(bars) == 0:  # Если новых бар нет
             print('Новых записей нет')
             return None  # то выходим, дальше не продолжаем
+        self.storage.set_bars(bars)  # Сохраняем бары в хранилище
         return bars
 
     def get_last_price(self, dataname):
