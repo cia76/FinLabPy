@@ -53,7 +53,7 @@ class FileStorage(Storage):
         if len(bars) == 0:  # Если бар нет
             return  # то выходим, дальше не продолжаем
         pd_bars = bars_to_df(bars)  # Переводим бары в pandas DataFrame
-        symbol = self.get_symbol(bars[0].symbol)  # Спецификация тикера по первому бару
+        symbol = self.get_symbol(bars[0].dataname)  # Спецификация тикера по первому бару
         time_frame = bars[0].time_frame  # Временной интервал по первому бару
         file_bars = self.get_bars(symbol, time_frame)  # Все бары из файла
         if file_bars is not None:  # Если в файле есть бары
