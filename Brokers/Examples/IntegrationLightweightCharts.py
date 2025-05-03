@@ -10,7 +10,8 @@ if __name__ == '__main__':  # Точка входа при запуске это
 
     broker = default_broker  # Брокер по умолчанию
     # broker = brokers['Т']  # Брокер по ключу из Config.py словаря brokers
-    bars = broker.get_history(dataname, time_frame)  # Получаем всю историю тикера
+    symbol = broker.get_symbol_by_dataname(dataname)  # Получаем спецификацию тикера
+    bars = broker.get_history(symbol, time_frame)  # Получаем всю историю тикера
     pd_bars = bars_to_df(bars)  # Бары в pandas DataFrame
 
     chart = Chart(toolbox=True)  # График с элементами рисования
