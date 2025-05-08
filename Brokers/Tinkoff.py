@@ -87,7 +87,7 @@ class Tinkoff(Broker):
         if next_bar_open_utc is None:  # Если он не задан, то возьмем
             next_bar_open_utc = datetime.fromtimestamp(symbol.broker_info['first_1min_timestamp'], timezone.utc) if intraday else \
                 datetime.fromtimestamp(symbol.broker_info['first_1day_timestamp'], timezone.utc)  # Первый минутный/дневной бар истории
-        todate_utc = datetime.now(UTC).replace(tzinfo=timezone.utc) if dt_to is None else self.provider.msk_to_utc_datetime(dt_to, True)  # Последний возможный бар по UTC
+        todate_utc = datetime.now(UTC) if dt_to is None else self.provider.msk_to_utc_datetime(dt_to, True)  # Последний возможный бар по UTC
         while True:  # Будем получать бары пока не получим все
             request = GetCandlesRequest(instrument_id=symbol.broker_info['figi'], interval=tinkoff_time_frame)  # Запрос на получение бар
             from_ = getattr(request, 'from')  # т.к. from - ключевое слово в Python, то получаем атрибут from из атрибута интервала

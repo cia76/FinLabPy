@@ -1,5 +1,5 @@
 import logging  # Будем вести лог
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, UTC
 from time import sleep
 from uuid import uuid4  # Номера расписаний должны быть уникальными во времени и пространстве
 from threading import Thread, Event  # Поток и событие остановки потока получения новых бар по расписанию биржи
@@ -217,7 +217,7 @@ class BTData(with_metaclass(MetaData, AbstractDataBase)):
         """Поток получения новых бар по расписанию биржи"""
         self.logger.debug('Запуск получения новых бар по расписанию')
         while True:
-            market_datetime_now = self.p.schedule.utc_to_msk_datetime(datetime.utcnow())  # Текущее время на бирже
+            market_datetime_now = self.p.schedule.utc_to_msk_datetime(datetime.now(UTC))  # Текущее время на бирже
             trade_bar_open_datetime = self.p.schedule.trade_bar_open_datetime(market_datetime_now, self.tf)  # Дата и время открытия бара, который будем получать
             trade_bar_request_datetime = self.p.schedule.trade_bar_request_datetime(market_datetime_now, self.tf)  # Дата и время запроса бара на бирже
             sleep_time_secs = (trade_bar_request_datetime - market_datetime_now).total_seconds()  # Время ожидания в секундах
@@ -330,6 +330,7 @@ class BTData(with_metaclass(MetaData, AbstractDataBase)):
             return dt_open + timedelta(minutes=self.p.compression * period)  # Время закрытия бара
         elif self.p.timeframe == TimeFrame.Seconds:  # Секундный временной интервал
             return dt_open + timedelta(seconds=self.p.compression * period)  # Время закрытия бара
+        raise NotImplementedError  # С остальными временнЫми интервалами не работаем
 
     def get_alor_date_time_now(self) -> datetime:
         """Текущая дата и время
