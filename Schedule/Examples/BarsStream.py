@@ -34,7 +34,8 @@ def bars_stream(broker, dataname, schedule, time_frame):
         if exit_event_set:  # Если произошло событие выхода из потока
             broker.close()  # Перед выходом закрываем брокера
             return  # Выходим из потока, дальше не продолжаем
-        bars = broker.get_history(dataname, time_frame, trade_bar_open_datetime)  # Получаем ответ на запрос истории рынка
+        symbol = broker.get_symbol_by_dataname(dataname)  # Тикер по названию
+        bars = broker.get_history(symbol, time_frame, trade_bar_open_datetime)  # Получаем ответ на запрос истории рынка
         if bars is None:  # Если ничего не получили
             logger.warning('Данные не получены')
             continue  # Будем получать следующий бар
@@ -57,7 +58,7 @@ if __name__ == '__main__':  # Точка входа при запуске это
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',  # Формат сообщения
                         datefmt='%d.%m.%Y %H:%M:%S',  # Формат даты
                         level=logging.DEBUG,  # Уровень логируемых событий NOTSET/DEBUG/INFO/WARNING/ERROR/CRITICAL
-                        handlers=[logging.FileHandler('ScheduleBarsStream.log'), logging.StreamHandler()])  # Лог записываем в файл и выводим на консоль
+                        handlers=[logging.FileHandler('ScheduleBarsStream.log', encoding='utf-8'), logging.StreamHandler()])  # Лог записываем в файл и выводим на консоль
     logging.Formatter.converter = lambda *args: datetime.now(tz=Schedule.market_timezone).timetuple()  # В логе время указываем по временнОй зоне расписания (МСК)
     logging.getLogger('urllib3').setLevel(logging.CRITICAL + 1)
 

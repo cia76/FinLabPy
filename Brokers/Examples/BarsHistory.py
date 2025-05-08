@@ -20,7 +20,7 @@ if __name__ == '__main__':  # Точка входа при запуске это
 
     broker = default_broker  # Брокер по умолчанию
     # broker = brokers['Т']  # Брокер по ключу из Config.py словаря brokers
-    symbol = broker.get_symbol_by_dataname(dataname)  # Получаем спецификацию тикера
+    symbol = broker.get_symbol_by_dataname(dataname)  # Тикер по названию
     bars = broker.get_history(symbol, time_frame)  # Получаем всю историю тикера
     print(bars[0])  # Первый бар
     print(bars[-1])  # Последний бар
