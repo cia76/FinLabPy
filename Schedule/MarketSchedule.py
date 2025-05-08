@@ -1,5 +1,5 @@
 from typing import Tuple, Union  # Кортеж, объединение типов
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, UTC
 
 from pytz import timezone, utc  # Работаем с временнОй зоной и UTC
 
@@ -164,7 +164,7 @@ class Schedule:
     @property
     def market_datetime_now(self) -> datetime:
         """Текущее время на бирже по часам локального компьютера"""
-        return self.utc_to_msk_datetime(datetime.utcnow()).replace(microsecond=0)  # Текущее время МСК с точностью до секунды (без микросекунд)
+        return self.utc_to_msk_datetime(datetime.now(UTC)).replace(microsecond=0)  # Текущее время МСК с точностью до секунды (без микросекунд)
 
     def utc_to_msk_datetime(self, dt, tzinfo=False) -> datetime:
         """Перевод времени из UTC в московское
@@ -194,7 +194,7 @@ class Schedule:
         :param int seconds: Кол-во секунд, прошедших с 01.01.1970 00:00 UTC
         :return: Московское время без временнОй зоны
         """
-        dt_utc = datetime.utcfromtimestamp(seconds)  # Переводим кол-во секунд, прошедших с 01.01.1970 в UTC
+        dt_utc = datetime.fromtimestamp(seconds, UTC)  # Переводим кол-во секунд, прошедших с 01.01.1970 в UTC
         return self.utc_to_msk_datetime(dt_utc)  # Переводим время из UTC в московское
 
     def msk_datetime_to_utc_timestamp(self, dt) -> int:
