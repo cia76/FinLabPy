@@ -1,6 +1,4 @@
-# Курс Мультиброкер: Контроль https://finlab.vip/wpm-category/mbcontrol/
-
-from datetime import datetime, timezone, timedelta  # Дата и время, временнАя зона, временной интервал
+from datetime import datetime, timezone, timedelta, UTC
 from threading import Thread  # Запускаем поток подписки
 from math import log10  # Кол-во десятичных знаков будем получать из шага цены через десятичный логарифм
 from typing import Union  # Объединение типов
@@ -49,7 +47,7 @@ class Tinkoff(Broker):
         """Разбор получения нового бара"""
         symbol = self._get_symbol_info(candle.figi)  # Спецификация тикера по уникальному коду
         time_frame = self.provider.tinkoff_subscription_timeframe_to_timeframe(candle.interval)  # Временной интервал
-        dt_msk = self.provider.utc_to_msk_datetime(datetime.utcfromtimestamp(candle.time.seconds))
+        dt_msk = self.provider.utc_to_msk_datetime(datetime.fromtimestamp(candle.time.seconds, UTC))
         open_ = self.provider.quotation_to_float(candle.open)
         high = self.provider.quotation_to_float(candle.high)
         low = self.provider.quotation_to_float(candle.low)
@@ -89,9 +87,9 @@ class Tinkoff(Broker):
         if next_bar_open_utc is None:  # Если он не задан, то возьмем
             next_bar_open_utc = datetime.fromtimestamp(symbol.broker_info['first_1min_timestamp'], timezone.utc) if intraday else \
                 datetime.fromtimestamp(symbol.broker_info['first_1day_timestamp'], timezone.utc)  # Первый минутный/дневной бар истории
-        todate_utc = datetime.utcnow().replace(tzinfo=timezone.utc) if dt_to is None else self.provider.msk_to_utc_datetime(dt_to, True)  # Последний возможный бар по UTC
+        todate_utc = datetime.now(UTC).replace(tzinfo=timezone.utc) if dt_to is None else self.provider.msk_to_utc_datetime(dt_to, True)  # Последний возможный бар по UTC
         while True:  # Будем получать бары пока не получим все
-            request = GetCandlesRequest(instrument_id=symbol.broker_info['figi'], interval=time_frame)  # Запрос на получение бар
+            request = GetCandlesRequest(instrument_id=symbol.broker_info['figi'], interval=tinkoff_time_frame)  # Запрос на получение бар
             from_ = getattr(request, 'from')  # т.к. from - ключевое слово в Python, то получаем атрибут from из атрибута интервала
             to_ = getattr(request, 'to')  # Аналогично будем работать с атрибутом to для единообразия
             from_.seconds = int(next_bar_open_utc.timestamp())  # Дата и время начала интервала UTC

@@ -1,6 +1,4 @@
-# Курс Мультиброкер: Контроль https://finlab.vip/wpm-category/mbcontrol/
-
-from datetime import datetime, timezone
+from datetime import datetime, timezone, UTC
 from typing import Union  # Объединение типов
 
 from FinLabPy.Core import Broker, Bar, Position, Order, Symbol  # Брокер, бар, позиция, заявка, тикер
@@ -38,7 +36,7 @@ class Alor(Broker):
         symbol = self._get_symbol_info(exchange, alor_symbol)  # Спецификация тикера
         alor_tf = subscription['tf']  # Временной интервал Алор
         time_frame, intraday = self.provider.alor_timeframe_to_timeframe(alor_tf)  # Временной интервал с признаком внутридневного интервала
-        dt_msk = self.provider.utc_timestamp_to_msk_datetime(utc_timestamp) if intraday else datetime.utcfromtimestamp(utc_timestamp)  # Дневные бары и выше ставим на начало дня по UTC. Остальные - по МСК
+        dt_msk = self.provider.utc_timestamp_to_msk_datetime(utc_timestamp) if intraday else datetime.fromtimestamp(utc_timestamp, UTC)  # Дневные бары и выше ставим на начало дня по UTC. Остальные - по МСК
         volume = response_data['volume'] * symbol.lot_size  # Объем в штуках
         self.on_new_bar(Bar(symbol.board, alor_symbol, symbol.dataname, time_frame, dt_msk, response_data['open'], response_data['high'], response_data['low'], response_data['close'], volume))  # Вызываем событие добавления нового бара
 
@@ -69,7 +67,7 @@ class Alor(Broker):
             print('Ошибка при получении истории: История не получена')
             return None  # то выходим, дальше не продолжаем
         for bar in history['history']:  # Пробегаемся по всем барам
-            dt_msk = self.provider.utc_timestamp_to_msk_datetime(bar['time']) if intraday else datetime.utcfromtimestamp(bar['time'])  # Дневные бары и выше ставим на начало дня по UTC. Остальные - по МСК
+            dt_msk = self.provider.utc_timestamp_to_msk_datetime(bar['time']) if intraday else datetime.fromtimestamp(bar['time'], UTC)  # Дневные бары и выше ставим на начало дня по UTC. Остальные - по МСК
             volume = bar['volume'] * symbol.lot_size  # Объем в штуках
             bars.append(Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame, dt_msk, bar['open'], bar['high'], bar['low'], bar['close'], volume))  # Добавляем бар
         self.storage.set_bars(bars)  # Сохраняем бары в хранилище
@@ -81,7 +79,7 @@ class Alor(Broker):
             return None  # то выходим, дальше не продолжаем
         exchange = symbol.broker_info  # Биржа
         alor_tf, _ = self.provider.timeframe_to_alor_timeframe(time_frame)  # Временной интервал Алор
-        seconds_from = int(datetime.utcnow().timestamp())  # Изначально подписываемся с текущего момента времени по UTC
+        seconds_from = int(datetime.now(UTC).timestamp())  # Изначально подписываемся с текущего момента времени по UTC
         _ = self.provider.bars_get_and_subscribe(exchange, symbol.symbol, alor_tf, seconds_from=seconds_from, frequency=1_000_000_000)  # Подписываемся на бары
         return None
 

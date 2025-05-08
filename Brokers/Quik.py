@@ -1,5 +1,3 @@
-# Курс Мультиброкер: Контроль https://finlab.vip/wpm-category/mbcontrol/
-
 from datetime import datetime
 from typing import Union  # Объединение типов
 import itertools  # Итератор для уникальных номеров транзакций
