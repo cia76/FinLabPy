@@ -105,17 +105,18 @@ class Broker:
         self.provider = provider  # Провайдер
         self.account_id = account_id  # Порядковый номер счета
         if storage == 'file':  # Если файловое хранилище
-            from FinLabPy.Storage.FileStorage import FileStorage as storage  # то ипортируем библиотеку файлового хранилища
-            self.storage = storage(self.__class__.__name__)  # Инициализируем хранилище
+            from FinLabPy.Storage.FileStorage import FileStorage  # то ипортируем библиотеку файлового хранилища
+            self.storage = FileStorage(self.__class__.__name__)  # Инициализируем хранилище
         elif storage == 'db':  # Если хранилище в БД
             try:
-                from FinLabPy.Storage.SQLiteStorage import SQLiteStorage as storage  # Пытаемся импортировать библиотеку Курса Базы данных для трейдеров https://finlab.vip/wpm-category/databases/
-                self.storage = storage()  # Инициализируем хранилище
+                from FinLabPy.Storage.SQLiteStorage import SQLiteStorage  # Пытаемся импортировать библиотеку Курса Базы данных для трейдеров https://finlab.vip/wpm-category/databases/
+                self.storage = SQLiteStorage()  # Инициализируем хранилище
             except ModuleNotFoundError:  # Если библиотека не найдена
-                from FinLabPy.Storage.FileStorage import FileStorage as storage  # то ипортируем библиотеку файлового хранилища
-                self.storage = storage(self.__class__.__name__)  # Инициализируем хранилище
+                from FinLabPy.Storage.FileStorage import FileStorage  # то ипортируем библиотеку файлового хранилища
+                self.storage = FileStorage(self.__class__.__name__)  # Инициализируем хранилище
         else:  # В остальных случаях
-            from FinLabPy.Storage.FileStorage import FileStorage as storage  # то ипортируем библиотеку файлового хранилища
+            from FinLabPy.Storage.FileStorage import FileStorage  # то ипортируем библиотеку файлового хранилища
+            self.storage = FileStorage(self.__class__.__name__)  # Инициализируем хранилище
         self.positions: list[Position] = []  # Текущие позиции
         self.orders: list[Order] = []  # Активные заявки
 
