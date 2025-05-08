@@ -85,7 +85,7 @@ class BTBroker(with_metaclass(MetaBroker, BrokerBase)):
         else:  # Если считаем стоимость всех позиций
             value = sum([position.price * position.size for key, position in self.positions.items() if key[2]])  # Стоимость всех позиций
             self.value = value  # Сохраняем текущую стоимость позиций
-        return self.value
+        return value
 
     def getposition(self, data: BTData):
         """Позиция по тикеру
@@ -302,9 +302,9 @@ class BTBroker(with_metaclass(MetaBroker, BrokerBase)):
     def cancel_order(self, order):
         """Отмена заявки"""
         if not order.alive():  # Если заявка уже была завершена
-            return  # то выходим, дальше не продолжаем
+            return None  # то выходим, дальше не продолжаем
         if order.ref not in self.orders:  # Если заявка не найдена
-            return  # то выходим, дальше не продолжаем
+            return None  # то выходим, дальше не продолжаем
         portfolio = order.info['account']['portfolio']  # Портфель
         exchange = order.data.exchange  # Код биржи
         order_number = order.info['order_number']  # Номер заявки на бирже
