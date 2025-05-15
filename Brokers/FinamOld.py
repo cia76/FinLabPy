@@ -93,10 +93,7 @@ class Finam(Broker):
         self.storage.set_bars(bars)  # Сохраняем бары в хранилище
         return bars
 
-    def get_last_price(self, dataname):
-        symbol = self.get_symbol_by_dataname(dataname)  # Тикер по названию
-        if symbol is None:  # Если тикер не получен
-            return None  # то выходим, дальше не продолжаем
+    def get_last_price(self, symbol):
         tommorrow = datetime.today() + timedelta(days=1)  # Завтрашняя дата
         last_bar = self.provider.get_day_candles(
             symbol.board, symbol.symbol, self.provider.proto_candles.DAYCANDLE_TIMEFRAME_D1,

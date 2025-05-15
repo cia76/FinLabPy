@@ -74,7 +74,7 @@ class Tinkoff(Broker):
         self.storage.set_symbol(symbol)  # Добавляем спецификацию тикера в хранилище
         return symbol
 
-    def get_history(self, symbol, time_frame, dt_from: datetime = None, dt_to: datetime = None):
+    def get_history(self, symbol, time_frame, dt_from=None, dt_to=None):
         bars = super().get_history(symbol, time_frame, dt_from, dt_to)  # Получаем бары из хранилища
         next_bar_open_utc = None if dt_from is None else self.provider.msk_to_utc_datetime(dt_from, True)  # Первый возможный бар по UTC
         if bars is None:  # Если бары из хранилища не получены
@@ -134,10 +134,7 @@ class Tinkoff(Broker):
         self.storage.set_bars(bars)  # Сохраняем бары в хранилище
         return bars
 
-    def subscribe_history(self, dataname, time_frame):
-        symbol = self.get_symbol_by_dataname(dataname)  # Тикер по названию
-        if symbol is None:  # Если тикер не получен
-            return None  # то выходим, дальше не продолжаем
+    def subscribe_history(self, symbol, time_frame):
         Thread(target=self.provider.subscriptions_marketdata_handler, name='TKSubscriptionsMarketdataThread').start()  # Создаем и запускаем поток обработки подписок сделок по заявке
         self.provider.subscription_marketdata_queue.put(  # Ставим в буфер команд подписки на биржевую информацию
             MarketDataRequest(subscribe_candles_request=SubscribeCandlesRequest(  # запрос на новые бары
@@ -147,10 +144,7 @@ class Tinkoff(Broker):
                 waiting_close=True)))  # по закрытию бара
         return None
 
-    def get_last_price(self, dataname):
-        symbol = self.get_symbol_by_dataname(dataname)  # Тикер по названию
-        if symbol is None:  # Если тикер не получен
-            return None  # то выходим, дальше не продолжаем
+    def get_last_price(self, symbol):
         request = GetLastPricesRequest(instrument_id=[symbol.broker_info['figi']])
         response: GetLastPricesResponse = self.provider.call_function(self.provider.stub_marketdata.GetLastPrices, request)  # Запрос последних цен
         return self.provider.quotation_to_float(response.last_prices[-1].price)  # Последняя цена

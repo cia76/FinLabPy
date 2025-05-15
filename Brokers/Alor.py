@@ -37,8 +37,12 @@ class Alor(Broker):
         alor_tf = subscription['tf']  # Временной интервал Алор
         time_frame, intraday = self.provider.alor_timeframe_to_timeframe(alor_tf)  # Временной интервал с признаком внутридневного интервала
         dt_msk = self.provider.utc_timestamp_to_msk_datetime(utc_timestamp) if intraday else datetime.fromtimestamp(utc_timestamp, UTC)  # Дневные бары и выше ставим на начало дня по UTC. Остальные - по МСК
-        volume = response_data['volume'] * symbol.lot_size  # Объем в штуках
-        self.on_new_bar(Bar(symbol.board, alor_symbol, symbol.dataname, time_frame, dt_msk, response_data['open'], response_data['high'], response_data['low'], response_data['close'], volume))  # Вызываем событие добавления нового бара
+        open_ = self.provider.alor_price_to_price(exchange, symbol.symbol, response_data['open'])  # Конвертируем цены
+        high = self.provider.alor_price_to_price(exchange, symbol.symbol, response_data['high'])  # из цен Алор
+        low = self.provider.alor_price_to_price(exchange, symbol.symbol, response_data['low'])  # в зависимости от
+        close = self.provider.alor_price_to_price(exchange, symbol.symbol, response_data['close'])  # режима торгов
+        volume = self.provider.lots_to_size(exchange, symbol.symbol, int(response_data['volume']))  # Объем в штуках
+        self.on_new_bar(Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame, dt_msk, open_, high, low, close, volume))  # Вызываем событие добавления нового бара
 
     def get_symbol_by_dataname(self, dataname):
         symbol = self.storage.get_symbol(dataname)  # Проверяем, есть ли спецификация тикера в хранилище
@@ -68,25 +72,23 @@ class Alor(Broker):
             return None  # то выходим, дальше не продолжаем
         for bar in history['history']:  # Пробегаемся по всем барам
             dt_msk = self.provider.utc_timestamp_to_msk_datetime(bar['time']) if intraday else datetime.fromtimestamp(bar['time'], UTC)  # Дневные бары и выше ставим на начало дня по UTC. Остальные - по МСК
-            volume = bar['volume'] * symbol.lot_size  # Объем в штуках
-            bars.append(Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame, dt_msk, bar['open'], bar['high'], bar['low'], bar['close'], volume))  # Добавляем бар
+            open_ = self.provider.alor_price_to_price(exchange, symbol.symbol, bar['open'])  # Конвертируем цены
+            high = self.provider.alor_price_to_price(exchange, symbol.symbol, bar['high'])  # из цен Алор
+            low = self.provider.alor_price_to_price(exchange, symbol.symbol, bar['low'])  # в зависимости от
+            close = self.provider.alor_price_to_price(exchange, symbol.symbol, bar['close'])  # режима торгов
+            volume = self.provider.lots_to_size(exchange, symbol.symbol, int(bar['volume']))  # Объем в штуках
+            bars.append(Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame, dt_msk, open_, high, low, close, volume))  # Добавляем бар
         self.storage.set_bars(bars)  # Сохраняем бары в хранилище
         return bars
 
-    def subscribe_history(self, dataname, time_frame):
-        symbol = self.get_symbol_by_dataname(dataname)  # Тикер по названию
-        if symbol is None:  # Если тикер не получен
-            return None  # то выходим, дальше не продолжаем
+    def subscribe_history(self, symbol, time_frame):
         exchange = symbol.broker_info  # Биржа
         alor_tf, _ = self.provider.timeframe_to_alor_timeframe(time_frame)  # Временной интервал Алор
         seconds_from = int(datetime.now(UTC).timestamp())  # Изначально подписываемся с текущего момента времени по UTC
         _ = self.provider.bars_get_and_subscribe(exchange, symbol.symbol, alor_tf, seconds_from=seconds_from, frequency=1_000_000_000)  # Подписываемся на бары
         return None
 
-    def get_last_price(self, dataname):
-        symbol = self.get_symbol_by_dataname(dataname)  # Тикер по названию
-        if symbol is None:  # Если тикер не получен
-            return None  # то выходим, дальше не продолжаем
+    def get_last_price(self, symbol):
         exchange = symbol.broker_info  # Биржа
         quotes = self.provider.get_quotes(f'{exchange}:{symbol.symbol}')[0]  # Последнюю котировку получаем через запрос
         return quotes['last_price'] if quotes else None  # Последняя цена сделки

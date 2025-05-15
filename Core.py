@@ -133,7 +133,7 @@ class Broker:
         """История тикера"""
         return self.storage.get_bars(symbol, time_frame, dt_from, dt_to)
 
-    def subscribe_history(self, dataname: str, time_frame: str) -> None:
+    def subscribe_history(self, symbol: Symbol, time_frame: str) -> None:
         """Подписка на историю тикера"""
         raise NotImplementedError
 
@@ -141,7 +141,7 @@ class Broker:
         """Получение нового бара по подписке"""
         raise NotImplementedError
 
-    def get_last_price(self, dataname: str) -> Union[float, None]:
+    def get_last_price(self, symbol: Symbol) -> Union[float, None]:
         """Последняя цена тикера"""
         raise NotImplementedError
 

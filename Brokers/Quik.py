@@ -51,7 +51,7 @@ class Quik(Broker):
             return  # то выходим, дальше не продолжаем
         order.id = order_num  # Ставим номер заявки
 
-    def get_symbol_by_dataname(self, dataname: str):
+    def get_symbol_by_dataname(self, dataname):
         symbol = self.storage.get_symbol(dataname)  # Проверяем, есть ли спецификация тикера в хранилище
         if symbol is not None:  # Если есть тикер
             return symbol  # то возвращаем его, дальше не продолжаем
@@ -61,10 +61,9 @@ class Quik(Broker):
             return None  # То выходим, дальше не продолжаем
         return self._get_symbol_info(class_code, sec_code)
 
-    def get_history(self, dataname: str, tf: str, dt_from: datetime = None, dt_to: datetime = None):
-        class_code, security_code = self.provider.dataname_to_class_sec_codes(dataname)  # Код режима торгов и тикер из названия тикера
-        time_frame, _ = self.provider.timeframe_to_quik_timeframe(tf)  # Временной интервал QUIK
-        history = self.provider.get_candles_from_data_source(class_code, security_code, time_frame)  # Получаем все бары из QUIK. Фильтрацию по дате и времени будем делать при разборе баров
+    def get_history(self, symbol, time_frame, dt_from=None, dt_to=None):
+        quik_tf, _ = self.provider.timeframe_to_quik_timeframe(time_frame)  # Временной интервал QUIK
+        history = self.provider.get_candles_from_data_source(symbol.board, symbol.symbol, quik_tf)  # Получаем все бары из QUIK. Фильтрацию по дате и времени будем делать при разборе баров
         if not history:  # Если бары не получены
             print('Ошибка при получении истории: История не получена')
             return None  # то выходим, дальше не продолжаем
@@ -78,22 +77,21 @@ class Quik(Broker):
                 continue  # то пропускаем этот бар
             if dt_to and dt_to < dt:  # Если задана дата окончания, и она раньше даты и времени бара
                 continue  # то пропускаем этот бар
-            bars.append(Bar(class_code, security_code, dataname, tf, dt, bar['open'], bar['high'], bar['low'], bar['close'], int(bar['volume'])))  # Добавляем бар
+            bars.append(Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame, dt, bar['open'], bar['high'], bar['low'], bar['close'], int(bar['volume'])))  # Добавляем бар
         self.storage.set_bars(bars)  # Сохраняем бары в хранилище
         return bars
 
-    def subscribe_history(self, dataname: str, time_frame: str):
-        class_code, security_code = self.provider.dataname_to_class_sec_codes(dataname)  # Код режима торгов и тикер из названия тикера
-        interval, _ = self.provider.timeframe_to_quik_timeframe(time_frame)  # Временной интервал QUIK
-        self.provider.subscribe_to_candles(class_code, security_code, interval)  # Подписываемся на бары
+    def subscribe_history(self, symbol, time_frame):
+        quik_tf, _ = self.provider.timeframe_to_quik_timeframe(time_frame)  # Временной интервал QUIK
+        self.provider.subscribe_to_candles(symbol.board, symbol.symbol, quik_tf)  # Подписываемся на бары
 
-    def get_last_price(self, dataname: str):
-        si = self.get_symbol_by_dataname(dataname)  # Тикер по названию
-        last_price = float(self.provider.get_param_ex(si.board, si.symbol, 'LAST')['data']['param_value'])  # Последняя цена сделки
-        return self.provider.quik_price_to_price(si.board, si.symbol, last_price)  # Цена в рублях за штуку
+    def get_last_price(self, symbol):
+        last_price = float(self.provider.get_param_ex(symbol.board, symbol.symbol, 'LAST')['data']['param_value'])  # Последняя цена сделки
+        return self.provider.quik_price_to_price(symbol.board, symbol.symbol, last_price)  # Цена в рублях за штуку
 
     def get_value(self):
         if self.account['futures']:  # Для срочного рынка
+            # noinspection PyBroadException
             try:  # Пытаемся получить стоимость позиций
                 return float(self.provider.get_futures_limit(self.account['firm_id'], self.account['trade_account_id'], 0, self.provider.currency)['data']['cbplused'])  # Тек.чист.поз. (Заблокированное ГО под открытые позиции)
             except Exception:  # При ошибке Futures limit returns nil
@@ -112,6 +110,7 @@ class Quik(Broker):
             # Накоплен.доход включает Биржевые сборы
             # Тек.чист.поз. = Заблокированное ГО под открытые позиции
             # План.чист.поз. = На какую сумму можете открыть еще позиции
+            # noinspection PyBroadException
             try:
                 futures_limit = self.provider.get_futures_limit(self.account['firm_id'], self.account['trade_account_id'], 0, self.provider.currency)['data']  # Фьючерсные лимиты
                 return float(futures_limit['cbplimit']) + float(futures_limit['varmargin']) + float(futures_limit['accruedint'])  # Лимит откр.поз. + Вариац.маржа + Накоплен.доход
@@ -220,7 +219,7 @@ class Quik(Broker):
                 condition_price))  # Цена срабатывания
         return self.orders
 
-    def new_order(self, order: Order):
+    def new_order(self, order):
         class_code, sec_code = self.provider.dataname_to_class_sec_codes(order.dataname)  # Код режима торгов и тикер из названия тикера
         action = 'NEW_STOP_ORDER' if order.exec_type in (Order.Stop, Order.StopLimit) else 'NEW_ORDER'  # Действие над заявкой
         quantity = self.provider.size_to_lots(class_code, sec_code, order.quantity)  # Кол-во в лотах
@@ -244,7 +243,7 @@ class Quik(Broker):
             transaction['TYPE'] = 'M'  # M = рыночная заявка
         self.provider.send_transaction(transaction)
 
-    def cancel_order(self, order: Order):
+    def cancel_order(self, order):
         class_code, sec_code = self.provider.dataname_to_class_sec_codes(order.dataname)  # Код режима торгов и тикер из названия тикера
         action = 'KILL_STOP_ORDER' if order.exec_type in (Order.Stop, Order.StopLimit) else 'KILL_ORDER'  # Действие над заявкой
         order_key = 'STOP_ORDER_KEY' if order.exec_type in (Order.Stop, Order.StopLimit) else 'ORDER_KEY'  # Номер заявки
