@@ -14,6 +14,7 @@ class Alor(Broker):
         account = self.provider.accounts[self.account_id]  # Номер счета по порядковому номеру
         self.portfolio = account['portfolio']  # Портфель
         self.exchange = exchange  # Биржа
+        self.history_subscription: dict[tuple[Symbol, str], str] = {}  # Список подписок на историю тикеров
 
     def _get_symbol_info(self, exchange: str, alor_symbol: str) -> Union[Symbol, None]:
         si = self.provider.get_symbol_info(exchange, alor_symbol)  # Получаем спецификацию тикера из Алор
@@ -85,8 +86,11 @@ class Alor(Broker):
         exchange = symbol.broker_info  # Биржа
         alor_tf, _ = self.provider.timeframe_to_alor_timeframe(time_frame)  # Временной интервал Алор
         seconds_from = int(datetime.now(UTC).timestamp())  # Изначально подписываемся с текущего момента времени по UTC
-        _ = self.provider.bars_get_and_subscribe(exchange, symbol.symbol, alor_tf, seconds_from=seconds_from, frequency=1_000_000_000)  # Подписываемся на бары
-        return None
+        self.history_subscription[(symbol, time_frame)] = self.provider.bars_get_and_subscribe(exchange, symbol.symbol, alor_tf, seconds_from=seconds_from, frequency=1_000_000_000)  # Подписываемся на бары, добавляем в список подписок
+
+    def unsubscribe_history(self, symbol, time_frame):
+        self.provider.unsubscribe(self.history_subscription[(symbol, time_frame)])  # Отменяем подписку на бары
+        del self.history_subscription[(symbol, time_frame)]  # Удаляем из списка подписок
 
     def get_last_price(self, symbol):
         exchange = symbol.broker_info  # Биржа

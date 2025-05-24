@@ -85,6 +85,10 @@ class Quik(Broker):
         quik_tf, _ = self.provider.timeframe_to_quik_timeframe(time_frame)  # Временной интервал QUIK
         self.provider.subscribe_to_candles(symbol.board, symbol.symbol, quik_tf)  # Подписываемся на бары
 
+    def unsubscribe_history(self, symbol, time_frame):
+        quik_tf, _ = self.provider.timeframe_to_quik_timeframe(time_frame)  # Временной интервал QUIK
+        self.provider.unsubscribe_from_candles(symbol.board, symbol.symbol, quik_tf)  # Отменяем подписку на бары
+
     def get_last_price(self, symbol):
         last_price = float(self.provider.get_param_ex(symbol.board, symbol.symbol, 'LAST')['data']['param_value'])  # Последняя цена сделки
         return self.provider.quik_price_to_price(symbol.board, symbol.symbol, last_price)  # Цена в рублях за штуку

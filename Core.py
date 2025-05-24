@@ -137,6 +137,10 @@ class Broker:
         """Подписка на историю тикера"""
         raise NotImplementedError
 
+    def unsubscribe_history(self, symbol: Symbol, time_frame: str) -> None:
+        """Отмена подписки на историю тикера"""
+        raise NotImplementedError
+
     def on_new_bar(self, bar: Bar) -> None:
         """Получение нового бара по подписке"""
         raise NotImplementedError

@@ -26,6 +26,7 @@ class Tinkoff(Broker):
         self.provider = provider  # Уже инициирован в базовом классе. Выполням для того, чтобы работать с типом провайдера
         self.provider.on_candle = self._new_bar  # Перехватываем управление события получения нового бара
         self.account_id = self.provider.accounts[account_id].id  # Номер счета по порядковому номеру
+        self.history_thread = None  # Поток подписок на историю тикера
 
     def _get_symbol_info(self, figi: str) -> Union[Symbol, None]:
         """Спецификация тикера по уникальному коду"""
@@ -135,14 +136,23 @@ class Tinkoff(Broker):
         return bars
 
     def subscribe_history(self, symbol, time_frame):
-        Thread(target=self.provider.subscriptions_marketdata_handler, name='TKSubscriptionsMarketdataThread').start()  # Создаем и запускаем поток обработки подписок сделок по заявке
+        if self.history_thread is None:  # Если поток подписок на историю тикера еще не создан (первая подписка)
+            self.history_thread = Thread(target=self.provider.subscriptions_marketdata_handler, name='TKSubscriptionsMarketdataThread')  # то создаем
+            self.history_thread.start()  # и запускаем поток
         self.provider.subscription_marketdata_queue.put(  # Ставим в буфер команд подписки на биржевую информацию
             MarketDataRequest(subscribe_candles_request=SubscribeCandlesRequest(  # запрос на новые бары
                 subscription_action=SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,  # подписка
-                instruments=(CandleInstrument(interval=self.provider.timeframe_to_tinkoff_subscription_timeframe(time_frame),
-                                              instrument_id=symbol.broker_info['figi']),),  # на тикер по временному интервалу 1 минута
+                instruments=(CandleInstrument(interval=self.provider.timeframe_to_tinkoff_subscription_timeframe(time_frame),  # по временнОму интервалу
+                                              instrument_id=symbol.broker_info['figi']),),  # на тикер
                 waiting_close=True)))  # по закрытию бара
-        return None
+
+    def unsubscribe_history(self, symbol, time_frame):
+        self.provider.subscription_marketdata_queue.put(  # Ставим в буфер команд подписки на биржевую информацию
+            MarketDataRequest(subscribe_candles_request=SubscribeCandlesRequest(  # запрос на новые бары
+                subscription_action=SubscriptionAction.SUBSCRIPTION_ACTION_UNSUBSCRIBE,  # отмена подписки
+                instruments=(CandleInstrument(interval=self.provider.timeframe_to_tinkoff_subscription_timeframe(time_frame),  # по временнОму интервалу
+                                              instrument_id=symbol.broker_info['figi']),),  # на тикер
+                waiting_close=True)))  # по закрытию бара
 
     def get_last_price(self, symbol):
         request = GetLastPricesRequest(instrument_id=[symbol.broker_info['figi']])
