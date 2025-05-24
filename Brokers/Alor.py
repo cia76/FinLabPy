@@ -59,7 +59,7 @@ class Alor(Broker):
         alor_tf, intraday = self.provider.timeframe_to_alor_timeframe(time_frame)  # Временной интервал Алор с признаком внутридневного интервала
         if bars is None:  # Если бары из хранилища не получены
             bars = []  # Пока список полученных бар пустой
-            seconds_from = 0  # Дата и время начала добавления в секундах, прошедших с 01.01.1970 00:00 UTC
+            seconds_from = 0 if dt_from is None else self.provider.msk_datetime_to_utc_timestamp(dt_from)  # Дата и время начала добавления в секундах, прошедших с 01.01.1970 00:00 UTC, если не задана дата начала. Иначе, с даты начала
         else:  # Если бары из хранилища получены
             dt_last_bar = bars[-1].datetime  # Дата и время последнего полученого бара из хранилища
             seconds_from = self.provider.msk_datetime_to_utc_timestamp(dt_last_bar) if intraday else int(dt_last_bar.replace(tzinfo=timezone.utc).timestamp())  # Будем получать бары с последнего бара в хранилище по UTC
