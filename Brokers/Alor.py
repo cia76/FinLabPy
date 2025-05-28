@@ -37,7 +37,7 @@ class Alor(Broker):
         symbol = self._get_symbol_info(exchange, alor_symbol)  # Спецификация тикера
         alor_tf = subscription['tf']  # Временной интервал Алор
         time_frame, intraday = self.provider.alor_timeframe_to_timeframe(alor_tf)  # Временной интервал с признаком внутридневного интервала
-        dt_msk = self.provider.utc_timestamp_to_msk_datetime(utc_timestamp) if intraday else datetime.fromtimestamp(utc_timestamp, UTC)  # Дневные бары и выше ставим на начало дня по UTC. Остальные - по МСК
+        dt_msk = self.provider.utc_timestamp_to_msk_datetime(utc_timestamp) if intraday else datetime.fromtimestamp(utc_timestamp)  # Дневные бары и выше ставим на начало дня по UTC. Остальные - по МСК
         open_ = self.provider.alor_price_to_price(exchange, symbol.symbol, response_data['open'])  # Конвертируем цены
         high = self.provider.alor_price_to_price(exchange, symbol.symbol, response_data['high'])  # из цен Алор
         low = self.provider.alor_price_to_price(exchange, symbol.symbol, response_data['low'])  # в зависимости от
@@ -72,7 +72,7 @@ class Alor(Broker):
             print('Ошибка при получении истории: История не получена')
             return None  # то выходим, дальше не продолжаем
         for bar in history['history']:  # Пробегаемся по всем барам
-            dt_msk = self.provider.utc_timestamp_to_msk_datetime(bar['time']) if intraday else datetime.fromtimestamp(bar['time'], UTC)  # Дневные бары и выше ставим на начало дня по UTC. Остальные - по МСК
+            dt_msk = self.provider.utc_timestamp_to_msk_datetime(bar['time']) if intraday else datetime.fromtimestamp(bar['time'])  # Дневные бары и выше ставим на начало дня по UTC. Остальные - по МСК
             open_ = self.provider.alor_price_to_price(exchange, symbol.symbol, bar['open'])  # Конвертируем цены
             high = self.provider.alor_price_to_price(exchange, symbol.symbol, bar['high'])  # из цен Алор
             low = self.provider.alor_price_to_price(exchange, symbol.symbol, bar['low'])  # в зависимости от
