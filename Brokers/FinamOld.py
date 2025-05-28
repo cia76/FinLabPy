@@ -20,8 +20,9 @@ class Finam(Broker):
             print(f'Информация о тикере {board_market}.{symbol} не найдена')
             return None  # то выходим, дальше не продолжаем
         board = self.provider.finam_board_to_board(si.board)  # Канонический код режима торгов
-        dataname = self.provider.finam_board_symbol_to_dataname(si.board, si.ticker)  # Название тикера
-        symbol = Symbol(board, si.ticker, dataname, si.name, si.decimals, si.min_step, si.lot_size)
+        dataname = self.provider.finam_board_symbol_to_dataname(si.board, si.code)  # Название тикера
+        min_step = 10 ** -si.decimals * si.min_step  # Минимальный шаг цены
+        symbol = Symbol(board, si.code, dataname, si.short_name, si.decimals, min_step, si.lot_size)
         self.storage.set_symbol(symbol)  # Добавляем спецификацию тикера в хранилище
         return symbol
 
