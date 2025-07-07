@@ -105,7 +105,7 @@ class Alor(Broker):
         if self.portfolio[0:3] == '750':  # Для счета срочного рынка
             cash = round(self.provider.get_forts_risk(self.portfolio, self.exchange)['moneyFree'], 2)  # Свободные средства. Сумма рублей и залогов, дисконтированных в рубли, доступная для открытия позиций. (MoneyFree = MoneyAmount + VmInterCl – MoneyBlocked – VmReserve – Fee)
         else:  # Для остальных счетов
-            cash = next((position['volume'] for position in self.provider.get_positions(self.portfolio, self.exchange, False) if position['symbol'] == 'RUB'), 0)  # Свободные средства через денежную позицию
+            cash = next((position['qtyUnits'] for position in self.provider.get_positions(self.portfolio, self.exchange, False) if position['symbol'] == 'RUB'), 0)  # Свободные средства через денежную позицию
         return round(cash, 2)
 
     def get_positions(self):
