@@ -2,7 +2,6 @@
 
 from datetime import datetime  # Работа с датой и временем
 from math import copysign  # Знак числа
-from typing import Union  # Объединение типов
 
 import pandas as pd
 
@@ -73,7 +72,7 @@ class Order:
 
 class Position:
     """Позиция"""
-    def __init__(self, broker, dataname: str, description: str, decimals: int, quantity: int, average_price: Union[int, float], current_price: Union[int, float]):
+    def __init__(self, broker, dataname: str, description: str, decimals: int, quantity: int, average_price: int | float, current_price: int | float):
         self.broker = broker  # Брокер
         self.dataname = dataname  # Название тикера
         self.description = description  # Описание тикера
@@ -120,7 +119,7 @@ class Broker:
         self.positions: list[Position] = []  # Текущие позиции
         self.orders: list[Order] = []  # Активные заявки
 
-    def get_symbol_by_dataname(self, dataname: str) -> Union[Symbol, None]:
+    def get_symbol_by_dataname(self, dataname: str) -> Symbol | None:
         """Тикер по названию"""
         raise NotImplementedError
 
@@ -129,7 +128,7 @@ class Broker:
         """Название тикера из кода режима торгов и тикера"""
         return f'{board}.{symbol}'
 
-    def get_history(self, symbol: Symbol, time_frame: str, dt_from: datetime = None, dt_to: datetime = None) -> Union[list[Bar], None]:
+    def get_history(self, symbol: Symbol, time_frame: str, dt_from: datetime = None, dt_to: datetime = None) -> list[Bar] | None:
         """История тикера"""
         return self.storage.get_bars(symbol, time_frame, dt_from, dt_to)
 
@@ -145,7 +144,7 @@ class Broker:
         """Получение нового бара по подписке"""
         raise NotImplementedError
 
-    def get_last_price(self, symbol: Symbol) -> Union[float, None]:
+    def get_last_price(self, symbol: Symbol) -> float | None:
         """Последняя цена тикера"""
         raise NotImplementedError
 
@@ -184,7 +183,7 @@ class Storage:
         self.source = source  # Источник хранилища
         self.symbols: dict[str, Symbol] = {}  # Словать тикеров
 
-    def get_symbol(self, dataname: str) -> Union[Symbol, None]:
+    def get_symbol(self, dataname: str) -> Symbol | None:
         """Получение тикера"""
         return self.symbols[dataname] if dataname in self.symbols else None  # Пробуем получить тикер по названию из словаря
 
@@ -192,7 +191,7 @@ class Storage:
         """Сохранение тикера"""
         self.symbols[symbol.dataname] = symbol  # Добавляем/изменяем тикер в словаре
 
-    def get_bars(self, symbol: Symbol, time_frame: str, dt_from: datetime = None, dt_to: datetime = None) -> Union[list[Bar], None]:
+    def get_bars(self, symbol: Symbol, time_frame: str, dt_from: datetime = None, dt_to: datetime = None) -> list[Bar] | None:
         """Получение бар"""
         raise NotImplementedError
 
