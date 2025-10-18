@@ -1,5 +1,4 @@
 from datetime import datetime, timezone, UTC
-from typing import Union  # Объединение типов
 
 from FinLabPy.Core import Broker, Bar, Position, Order, Symbol  # Брокер, бар, позиция, заявка, тикер
 from AlorPy import AlorPy  # Работа с Alor OpenAPI V2 из Python через REST/WebSockets
@@ -16,14 +15,14 @@ class Alor(Broker):
         self.exchange = exchange  # Биржа
         self.history_subscription: dict[tuple[Symbol, str], str] = {}  # Список подписок на историю тикеров
 
-    def _get_symbol_info(self, exchange: str, alor_symbol: str) -> Union[Symbol, None]:
-        si = self.provider.get_symbol_info(exchange, alor_symbol)  # Получаем спецификацию тикера из Алор
+    def _get_symbol_info(self, exchange: str, alor_symbol: str) -> Symbol | None:
+        si = self.provider.get_symbol_info(exchange, alor_symbol)  # Спецификация тикера
         if 'board' not in si:  # Если тикер не получен
-            print(f'Информация о тикере {alor_symbol} на бирже {exchange} не найдена')
             return None  # то выходим, дальше не продолжаем
         board = self.provider.alor_board_to_board(si['board'])  # Канонический код режима торгов
         dataname = self.provider.alor_board_symbol_to_dataname(si['board'], alor_symbol)  # Название тикера
-        symbol = Symbol(board, alor_symbol, dataname, si['shortname'], si['decimals'], si['minstep'], si['lotsize'], exchange)  # Составляем спецификацию тикера
+        broker_info = {'exchange': exchange}  # Информация брокера
+        symbol = Symbol(board, alor_symbol, dataname, si['shortname'], si['decimals'], si['minstep'], si['lotsize'], broker_info)  # Составляем спецификацию тикера
         self.storage.set_symbol(symbol)  # Добавляем спецификацию тикера в хранилище
         return symbol
 
@@ -47,11 +46,11 @@ class Alor(Broker):
 
     def get_symbol_by_dataname(self, dataname):
         symbol = self.storage.get_symbol(dataname)  # Проверяем, есть ли спецификация тикера в хранилище
-        if symbol is not None and symbol.broker_info is not None:  # Если есть тикер и выставлена информация брокера
+        if symbol is not None:  # Если есть тикер
             return symbol  # то возвращаем его, дальше не продолжаем
         alor_board, alor_symbol = self.provider.dataname_to_alor_board_symbol(dataname)  # Код режима торгов Алора и тикер из названия тикера
         exchange = self.provider.get_exchange(alor_board, alor_symbol)  # Биржа
-        return self._get_symbol_info(exchange, alor_symbol)
+        return self._get_symbol_info(exchange, alor_symbol)  # то пробуем получить его спецификацию
 
     def get_history(self, symbol, time_frame, dt_from=None, dt_to=None):
         bars = super().get_history(symbol, time_frame, dt_from, dt_to)  # Получаем бары из хранилища
@@ -66,13 +65,12 @@ class Alor(Broker):
             del bars[-1]  # Этот бар удалим из выборки хранилища. Возможно, он был несформированный
             if dt_to is not None:  # Если задана дата и время окончания добавления
                 seconds_to = self.provider.msk_datetime_to_utc_timestamp(dt_to)  # то будем получать бары до нее
-        exchange = symbol.broker_info  # Биржа
+        exchange = symbol.broker_info['exchange']  # Биржа
         history = self.provider.get_history(exchange, symbol.symbol, alor_tf, seconds_from, seconds_to)  # Запрос истории рынка
         if 'history' not in history:  # Если в полученной истории нет ключа history
-            print('Ошибка при получении истории: История не получена')
             return None  # то выходим, дальше не продолжаем
         for bar in history['history']:  # Пробегаемся по всем барам
-            dt_msk = self.provider.utc_timestamp_to_msk_datetime(bar['time']) if intraday else datetime.fromtimestamp(bar['time'])  # Дневные бары и выше ставим на начало дня по UTC. Остальные - по МСК
+            dt_msk = self.provider.utc_timestamp_to_msk_datetime(bar['time']) if intraday else datetime.fromtimestamp(bar['time'], UTC).replace(tzinfo=None)  # Дневные бары и выше ставим на начало дня по UTC. Остальные - по МСК
             open_ = self.provider.alor_price_to_price(exchange, symbol.symbol, bar['open'])  # Конвертируем цены
             high = self.provider.alor_price_to_price(exchange, symbol.symbol, bar['high'])  # из цен Алор
             low = self.provider.alor_price_to_price(exchange, symbol.symbol, bar['low'])  # в зависимости от
@@ -83,7 +81,7 @@ class Alor(Broker):
         return bars
 
     def subscribe_history(self, symbol, time_frame):
-        exchange = symbol.broker_info  # Биржа
+        exchange = symbol.broker_info['exchange']  # Биржа
         alor_tf, _ = self.provider.timeframe_to_alor_timeframe(time_frame)  # Временной интервал Алор
         seconds_from = int(datetime.now(UTC).timestamp())  # Изначально подписываемся с текущего момента времени по UTC
         self.history_subscription[(symbol, time_frame)] = self.provider.bars_get_and_subscribe(exchange, symbol.symbol, alor_tf, seconds_from=seconds_from, frequency=1_000_000_000)  # Подписываемся на бары, добавляем в список подписок
@@ -93,7 +91,7 @@ class Alor(Broker):
         del self.history_subscription[(symbol, time_frame)]  # Удаляем из списка подписок
 
     def get_last_price(self, symbol):
-        exchange = symbol.broker_info  # Биржа
+        exchange = symbol.broker_info['exchange']  # Биржа
         quotes = self.provider.get_quotes(f'{exchange}:{symbol.symbol}')[0]  # Последнюю котировку получаем через запрос
         return quotes['last_price'] if quotes else None  # Последняя цена сделки
 
@@ -166,7 +164,7 @@ class Alor(Broker):
 
     def new_order(self, order):
         symbol = self.get_symbol_by_dataname(order.dataname)  # Тикер
-        exchange = symbol.broker_info  # Биржа
+        exchange = symbol.broker_info['exchange']  # Биржа
         side = 'buy' if order.buy else 'sell'  # Покупка/продажа
         quantity = order.quantity // symbol.lot_size  # Кол-во в лотах
         price = self.provider.price_to_alor_price(exchange, symbol.symbol, order.price)  # Цена
@@ -185,7 +183,7 @@ class Alor(Broker):
 
     def cancel_order(self, order):
         symbol = self.get_symbol_by_dataname(order.dataname)  # Тикер
-        exchange = symbol.broker_info  # Биржа
+        exchange = symbol.broker_info['exchange']  # Биржа
         stop = order.exec_type in (Order.Stop, Order.StopLimit)  # Удаляем стоп заявку
         self.provider.delete_order(self.portfolio, exchange, int(order.id), stop)  # Отменяем заявку по номеру
 
