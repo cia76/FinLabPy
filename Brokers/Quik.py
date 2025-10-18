@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Union  # Объединение типов
 import itertools  # Итератор для уникальных номеров транзакций
 
 from FinLabPy.Core import Broker, Position, Symbol, Order, Bar  # Брокер, позиция, заявка, тикер
@@ -20,7 +19,7 @@ class Quik(Broker):
         self.class_codes = self.provider.get_classes_list()['data']  # Режимы торгов через запятую
         self.trans_id = itertools.count(1)  # Номер транзакции задается пользователем. Он будет начинаться с 1 и каждый раз увеличиваться на 1
 
-    def _get_symbol_info(self, class_code, sec_code) -> Union[Symbol, None]:
+    def _get_symbol_info(self, class_code, sec_code) -> Symbol | None:
         si = self.provider.get_symbol_info(class_code, sec_code)  # Спецификация тикера
         if not si:  # Если тикер не найден
             print(f'Информация о тикере {class_code}.{sec_code} не найдена')
@@ -57,7 +56,6 @@ class Quik(Broker):
             return symbol  # то возвращаем его, дальше не продолжаем
         class_code, sec_code = self.provider.dataname_to_class_sec_codes(dataname)  # Код режима торгов и тикер
         if not class_code:  # Если код режима торгов не найден
-            print(f'Код режима торгов тикера {dataname} не найден')
             return None  # То выходим, дальше не продолжаем
         return self._get_symbol_info(class_code, sec_code)
 
