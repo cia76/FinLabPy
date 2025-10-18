@@ -1,43 +1,41 @@
 from datetime import datetime, timezone, timedelta, UTC
 from threading import Thread  # Запускаем поток подписки
 from math import log10  # Кол-во десятичных знаков будем получать из шага цены через десятичный логарифм
-from typing import Union  # Объединение типов
 from uuid import uuid4  # Номера заявок должны быть уникальными во времени и пространстве
 
 from google.protobuf.json_format import MessageToDict
 
 from FinLabPy.Core import Broker, Bar, Position, Order, Symbol  # Брокер, бар, позиция, заявка, тикер
-from TinkoffPy import TinkoffPy  # Работа с Tinkoff Invest API из Python
-from TinkoffPy.grpc.instruments_pb2 import InstrumentRequest, InstrumentIdType, InstrumentResponse  # Тикер
-from TinkoffPy.grpc.operations_pb2 import PortfolioRequest, PortfolioResponse  # Портфель
-from TinkoffPy.grpc.marketdata_pb2 import (
+from TinvestPy import TinvestPy  # Работа с Tinkoff Invest API из Python
+from TinvestPy.grpc.instruments_pb2 import InstrumentRequest, InstrumentIdType, InstrumentResponse  # Тикер
+from TinvestPy.grpc.operations_pb2 import PortfolioRequest, PortfolioResponse  # Портфель
+from TinvestPy.grpc.marketdata_pb2 import (
     MarketDataRequest, SubscribeCandlesRequest, SubscriptionAction, CandleInstrument,  # Подписка на свечи
     GetCandlesRequest, GetCandlesResponse, Candle, GetLastPricesRequest, GetLastPricesResponse)  # Свечи, стакан
-from TinkoffPy.grpc.orders_pb2 import (
+from TinvestPy.grpc.orders_pb2 import (
     GetOrdersRequest, GetOrdersResponse, PostOrderRequest, CancelOrderRequest, OrderType, ORDER_DIRECTION_BUY, ORDER_DIRECTION_SELL)  # Заявки
-from TinkoffPy.grpc.stoporders_pb2 import (
+from TinvestPy.grpc.stoporders_pb2 import (
     GetStopOrdersRequest, GetStopOrdersResponse, PostStopOrderRequest, CancelStopOrderRequest, StopOrderExpirationType, StopOrderType, STOP_ORDER_DIRECTION_BUY, STOP_ORDER_DIRECTION_SELL)  # Стоп заявки
 
 
-class Tinkoff(Broker):
+class Tinvest(Broker):
     """Брокер Т-Инвестиции"""
-    def __init__(self, code, name, provider: TinkoffPy, account_id=0, storage='file'):
+    def __init__(self, code, name, provider: TinvestPy, account_id=0, storage='file'):
         super().__init__(code, name, provider, account_id, storage)
         self.provider = provider  # Уже инициирован в базовом классе. Выполням для того, чтобы работать с типом провайдера
         self.provider.on_candle = self._new_bar  # Перехватываем управление события получения нового бара
         self.account_id = self.provider.accounts[account_id].id  # Номер счета по порядковому номеру
         self.history_thread = None  # Поток подписок на историю тикера
 
-    def _get_symbol_info(self, figi: str) -> Union[Symbol, None]:
-        """Спецификация тикера по уникальному коду"""
+    def _get_symbol_info(self, figi: str) -> Symbol | None:
+        """Спецификация тикера по уникальному коду figi"""
         request = InstrumentRequest(id_type=InstrumentIdType.INSTRUMENT_ID_TYPE_FIGI, class_code='', id=figi)  # Поиск тикера по уникальному коду
         response: InstrumentResponse = self.provider.call_function(self.provider.stub_instruments.GetInstrumentBy, request)  # Получаем информацию о тикере
         if not response:  # Если информация о тикере не найдена
-            print(f'Информация о тикере с figi={figi} не найдена')
             return None  # то выходим, дальше не продолжаем
         si = response.instrument  # Информация о тикере
         min_step = self.provider.quotation_to_float(si.min_price_increment)  # Шаг цены
-        decimals = int(log10(1 / min_step + 0.99))  # Из шага цены получаем кол-во десятичных знаков
+        decimals = 0 if min_step == 0 else int(log10(1 / min_step + 0.99))  # Из шага цены получаем кол-во десятичных знаков
         dataname = self.provider.class_code_symbol_to_dataname(si.class_code, si.ticker)  # Название тикера
         broker_info = {'figi': si.figi, 'first_1min_timestamp': si.first_1min_candle_date.seconds, 'first_1day_timestamp': si.first_1day_candle_date.seconds}  # Информация брокера
         symbol = Symbol(si.class_code, si.ticker, dataname, si.name, decimals, min_step, si.lot, broker_info)
@@ -47,7 +45,7 @@ class Tinkoff(Broker):
     def _new_bar(self, candle: Candle):
         """Разбор получения нового бара"""
         symbol = self._get_symbol_info(candle.figi)  # Спецификация тикера по уникальному коду
-        time_frame = self.provider.tinkoff_subscription_timeframe_to_timeframe(candle.interval)  # Временной интервал
+        time_frame = self.provider.tinvest_subscription_timeframe_to_timeframe(candle.interval)  # Временной интервал
         dt_msk = self.provider.utc_to_msk_datetime(datetime.fromtimestamp(candle.time.seconds, UTC))
         open_ = self.provider.quotation_to_float(candle.open)
         high = self.provider.quotation_to_float(candle.high)
@@ -58,22 +56,15 @@ class Tinkoff(Broker):
 
     def get_symbol_by_dataname(self, dataname):
         symbol = self.storage.get_symbol(dataname)  # Проверяем, есть ли спецификация тикера в хранилище
-        if symbol is not None and symbol.broker_info is not None:  # Если есть тикер и выставлена информация брокера
+        if symbol is not None:  # Если есть тикер
             return symbol  # то возвращаем его, дальше не продолжаем
         class_code, sec_code = self.provider.dataname_to_class_code_symbol(dataname)  # Код режима торгов и тикер из названия тикера
         request = InstrumentRequest(id_type=InstrumentIdType.INSTRUMENT_ID_TYPE_TICKER, class_code=class_code, id=sec_code)  # Поиск тикера по коду режима торгов/названию
         response: InstrumentResponse = self.provider.call_function(self.provider.stub_instruments.GetInstrumentBy, request)  # Получаем информацию о тикере
         if not response:  # Если информация о тикере не найдена
-            print(f'Информация о тикере {dataname} не найдена')
             return None  # то выходим, дальше не продолжаем
         si = response.instrument  # Информация о тикере
-        min_step = self.provider.quotation_to_float(si.min_price_increment)  # Шаг цены
-        decimals = int(log10(1 / min_step + 0.99))  # Из шага цены получаем кол-во десятичных знаков
-        dataname = self.provider.class_code_symbol_to_dataname(si.class_code, si.ticker)  # Название тикера
-        broker_info = {'figi': si.figi, 'first_1min_timestamp': si.first_1min_candle_date.seconds, 'first_1day_timestamp': si.first_1day_candle_date.seconds}  # Информация брокера
-        symbol = Symbol(si.class_code, si.ticker, dataname, si.name, decimals, min_step, si.lot, broker_info)
-        self.storage.set_symbol(symbol)  # Добавляем спецификацию тикера в хранилище
-        return symbol
+        return self._get_symbol_info(si.figi)  # то пробуем получить его спецификацию
 
     def get_history(self, symbol, time_frame, dt_from=None, dt_to=None):
         bars = super().get_history(symbol, time_frame, dt_from, dt_to)  # Получаем бары из хранилища
@@ -83,8 +74,8 @@ class Tinkoff(Broker):
         else:  # Если бары из хранилища получены
             next_bar_open_utc = self.provider.msk_to_utc_datetime(bars[-1].datetime, True)  # Дата и время последнего полученого бара из хранилища по UTC
             del bars[-1]  # Этот бар удалим из выборки хранилища. Возможно, он был несформированный
-        tinkoff_time_frame, intraday = self.provider.timeframe_to_tinkoff_timeframe(time_frame)  # Временной интервал Т-Инвестиции, внутридневной интервал
-        _, td = self.provider.tinkoff_timeframe_to_timeframe(tinkoff_time_frame)  # Временной интервал для имени файла и максимальный период запроса
+        tinkoff_time_frame, intraday = self.provider.timeframe_to_tinvest_timeframe(time_frame)  # Временной интервал Т-Инвестиции, внутридневной интервал
+        _, td = self.provider.tinvest_timeframe_to_timeframe(tinkoff_time_frame)  # Временной интервал для имени файла и максимальный период запроса
         if next_bar_open_utc is None:  # Если он не задан, то возьмем
             next_bar_open_utc = datetime.fromtimestamp(symbol.broker_info['first_1min_timestamp'], timezone.utc) if intraday else \
                 datetime.fromtimestamp(symbol.broker_info['first_1day_timestamp'], timezone.utc)  # Первый минутный/дневной бар истории
@@ -98,11 +89,9 @@ class Tinkoff(Broker):
             to_.seconds = int(todate_min_utc.timestamp())  # Дата и время окончания интервала UTC
             candles: GetCandlesResponse = self.provider.call_function(self.provider.stub_marketdata.GetCandles, request)  # Получаем ответ на запрос бар
             if not candles:  # Если бары не получены
-                print('Ошибка при получении истории: История не получена')
                 return None  # то выходим, дальше не продолжаем
             candles_dict = MessageToDict(candles, always_print_fields_with_no_presence=True)  # Переводим в словарь из JSON
             if 'candles' not in candles_dict:  # Если бар нет в словаре
-                print(f'Ошибка при получении истории: {candles_dict}')
                 return None  # то выходим, дальше не продолжаем
             new_bars_dict = candles_dict['candles']  # Переводим в словарь/список
             if len(new_bars_dict) > 0:  # Если пришли новые бары
@@ -114,23 +103,21 @@ class Tinkoff(Broker):
                 last_bar_dt_utc = datetime.fromisoformat(new_bars_dict[-1]['time'][:-1])  # Дата и время начала последнего полученного бара в UTC
                 last_bar_open_dt = self.provider.utc_to_msk_datetime(last_bar_dt_utc) if intraday else \
                     datetime(last_bar_dt_utc.year, last_bar_dt_utc.month, last_bar_dt_utc.day)  # Дату/время переводим из UTC в МСК
-                print(f'Получены бары с {first_bar_open_dt} по {last_bar_open_dt}')
                 for new_bar in new_bars_dict:  # Пробегаемся по всем полученным барам
                     if not new_bar['isComplete']:  # Если добрались до незавершенного бара
                         break  # то это последний бар, больше бары обрабатывать не будем
                     dt_utc = datetime.fromisoformat(new_bar['time'][:-1])  # Дата и время начала бара в UTC
                     dt = self.provider.utc_to_msk_datetime(dt_utc) if intraday else datetime(dt_utc.year, dt_utc.month, dt_utc.day)  # Дату/время переводим из UTC в МСК
-                    open_ = self.provider.tinkoff_price_to_price(symbol.board, symbol.symbol, self.provider.dict_quotation_to_float(new_bar['open']))
-                    high = self.provider.tinkoff_price_to_price(symbol.board, symbol.symbol, self.provider.dict_quotation_to_float(new_bar['high']))
-                    low = self.provider.tinkoff_price_to_price(symbol.board, symbol.symbol, self.provider.dict_quotation_to_float(new_bar['low']))
-                    close = self.provider.tinkoff_price_to_price(symbol.board, symbol.symbol, self.provider.dict_quotation_to_float(new_bar['close']))
+                    open_ = self.provider.tinvest_price_to_price(symbol.board, symbol.symbol, self.provider.dict_quotation_to_float(new_bar['open']))
+                    high = self.provider.tinvest_price_to_price(symbol.board, symbol.symbol, self.provider.dict_quotation_to_float(new_bar['high']))
+                    low = self.provider.tinvest_price_to_price(symbol.board, symbol.symbol, self.provider.dict_quotation_to_float(new_bar['low']))
+                    close = self.provider.tinvest_price_to_price(symbol.board, symbol.symbol, self.provider.dict_quotation_to_float(new_bar['close']))
                     volume = int(new_bar['volume']) * symbol.lot_size  # Объем в шутках
                     bars.append(Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame, dt, open_, high, low, close, volume))  # Добавляем бар
             next_bar_open_utc = todate_min_utc + timedelta(minutes=1) if intraday else todate_min_utc + timedelta(days=1)  # Смещаем время на возможный следующий бар UTC
             if next_bar_open_utc > todate_utc:  # Если пройден весь интервал
                 break  # то выходим из цикла получения бар
         if len(bars) == 0:  # Если новых записей нет
-            print('Новых записей нет')
             return None  # то выходим, дальше не продолжаем
         self.storage.set_bars(bars)  # Сохраняем бары в хранилище
         return bars
@@ -142,7 +129,7 @@ class Tinkoff(Broker):
         self.provider.subscription_marketdata_queue.put(  # Ставим в буфер команд подписки на биржевую информацию
             MarketDataRequest(subscribe_candles_request=SubscribeCandlesRequest(  # запрос на новые бары
                 subscription_action=SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,  # подписка
-                instruments=(CandleInstrument(interval=self.provider.timeframe_to_tinkoff_subscription_timeframe(time_frame),  # по временнОму интервалу
+                instruments=(CandleInstrument(interval=self.provider.timeframe_to_tinvest_subscription_timeframe(time_frame),  # по временнОму интервалу
                                               instrument_id=symbol.broker_info['figi']),),  # на тикер
                 waiting_close=True)))  # по закрытию бара
 
@@ -150,7 +137,7 @@ class Tinkoff(Broker):
         self.provider.subscription_marketdata_queue.put(  # Ставим в буфер команд подписки на биржевую информацию
             MarketDataRequest(subscribe_candles_request=SubscribeCandlesRequest(  # запрос на новые бары
                 subscription_action=SubscriptionAction.SUBSCRIPTION_ACTION_UNSUBSCRIBE,  # отмена подписки
-                instruments=(CandleInstrument(interval=self.provider.timeframe_to_tinkoff_subscription_timeframe(time_frame),  # по временнОму интервалу
+                instruments=(CandleInstrument(interval=self.provider.timeframe_to_tinvest_subscription_timeframe(time_frame),  # по временнОму интервалу
                                               instrument_id=symbol.broker_info['figi']),),  # на тикер
                 waiting_close=True)))  # по закрытию бара
 
