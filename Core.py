@@ -48,8 +48,10 @@ class Order:
     """Заявка"""
     (Market, Limit, Stop, StopLimit) = range(4)  # Тип заявки. По рынку/лимит/стоп/стоп-лимит
     ExecTypes = ['Market', 'Limit', 'Stop', 'StopLimit']  # Отображение типа заявки
+    (Created, Submitted, Accepted, Partial, Completed, Canceled, Expired, Margin, Rejected) = range(9)  # Статус заявки. Создана/отправлена брокеру/принята брокером/частично исполнена/исполнена/отменена/снята по времени/недостаточно средств/отклонена брокером
+    Status = ['Created', 'Submitted', 'Accepted', 'Partial', 'Completed', 'Canceled', 'Expired', 'Margin', 'Rejected']  # Отображение статуса заявки
 
-    def __init__(self, broker, order_id: str, buy: bool, exec_type, dataname: str, decimals: int, quantity: int, price: float=0, stop_price: float=0):
+    def __init__(self, broker, order_id: str, buy: bool, exec_type, dataname: str, decimals: int, quantity: int, price: float=0, stop_price: float=0, status = Created):
         self.broker = broker  # Брокер
         self.id = order_id  # Уникальный код заявки
         self.buy = buy  # Покупка
@@ -59,6 +61,28 @@ class Order:
         self.quantity = quantity  # Кол-во в штуках
         self.price = price  # Цена
         self.stop_price = stop_price  # Стоп цена
+        self.status = status  # Статус заявки
+
+    def __repr__(self):
+        price = self.price if self.exec_type in (self.Market, self.Limit) else self.stop_price  # Для лимитной заявки берем лимитную цену, для стоп заявки берем стоп цену
+        if self.decimals == 0:  # Если цена в рублях без копеек
+            format_price = str(int(price))  # То указываем цену как целое число без десятичных знаков
+        elif self.decimals <= 2:  # Если цена в рублях с копейками
+            format_price = f'{price:.2f}'  # То указываем цену как целое число с 2-мя десятичными знаками
+        else:  # В остальных случаях
+            format_price = '{p:.{d}f}'.format(p=price, d=self.decimals)  # Указываем цену какая есть
+        return f'[{self.broker.code}] {Order.Status[self.status]} {"Buy" if self.buy else "Sell"} {Order.ExecTypes[self.exec_type]} {self.dataname} {self.quantity} @ {format_price}'
+
+
+class Trade:
+    """Сделка"""
+    def __init__(self, broker, dataname: str, description: str, decimals: int, quantity: int, price: int | float):
+        self.broker = broker  # Брокер
+        self.dataname = dataname  # Название тикера
+        self.description = description  # Описание тикера
+        self.decimals = decimals  # Кол-во десятичных знаков в цене
+        self.quantity = quantity  # Кол-во в штуках. Положительное - длинная позиция, отрицательное - короткая позиция
+        self.price = price  # Цена исполнения в рублях
 
     def __repr__(self):
         if self.decimals == 0:  # Если цена в рублях без копеек
@@ -67,7 +91,7 @@ class Order:
             format_price = f'{self.price:.2f}'  # То указываем цену как целое число с 2-мя десятичными знаками
         else:  # В остальных случаях
             format_price = '{p:.{d}f}'.format(p=self.price, d=self.decimals)  # Указываем цену какая есть
-        return f'[{self.broker.code}] {Order.ExecTypes[self.exec_type]} {"Buy" if self.buy else "Sell"} {self.dataname} {self.quantity} @ {format_price}'
+        return f'[{self.broker.code}] {self.dataname} ({self.description})\n      {self.quantity} @ {format_price}'
 
 
 class Position:
@@ -92,7 +116,7 @@ class Position:
         else:  # В остальных случаях
             format_average_price = '{p:.{d}f}'.format(p=self.average_price, d=self.decimals)  # Указываем цены
             format_current_price = '{p:.{d}f}'.format(p=self.current_price, d=self.decimals)  # какие есть
-        return f'[{self.broker.code}] {self.dataname} ({self.description})\n      {self.quantity} @ {format_average_price} / {format_current_price} {self.change_pct:.2f}% '
+        return f'[{self.broker.code}] {self.dataname} ({self.description})\n      {self.quantity} @ {format_average_price} / {format_current_price} {self.change_pct:.2f}%'
 
 
 # noinspection PyShadowingBuiltins
@@ -170,6 +194,26 @@ class Broker:
 
     def cancel_order(self, order: Order) -> None:
         """Отмена активной заявки"""
+        raise NotImplementedError
+
+    def subscribe_transactions(self) -> None:
+        """Подписка на заявки, сделки, позиции"""
+        raise NotImplementedError
+
+    def unsubscribe_transactions(self) -> None:
+        """Отмена подписки на заявки, сделки, позиции"""
+        raise NotImplementedError
+
+    def on_order(self, order: Order) -> None:
+        """Получение заявки по подписке"""
+        raise NotImplementedError
+
+    def on_trade(self, trade: Trade) -> None:
+        """Получение сделки по подписке"""
+        raise NotImplementedError
+
+    def on_position(self, position: Position) -> None:
+        """Получение позиции по подписке"""
         raise NotImplementedError
 
     def close(self) -> None:
