@@ -6,9 +6,7 @@ from backtrader.feed import AbstractDataBase
 from backtrader.utils.py3 import with_metaclass
 from backtrader import TimeFrame, date2num
 
-from FinLabPy.BackTrader import BTStore  # Хранилище BackTrader
-from FinLabPy.Core import Broker  # Брокер
-from FinLabPy.Config import default_broker  # Если брокер не указан, то используем брокера по умолчанию
+from FinLabPy.BackTrader import Store  # Хранилище для BackTrader
 from FinLabPy.Schedule.MarketSchedule import Schedule  # Расписание торгов биржи
 
 
@@ -16,13 +14,12 @@ from FinLabPy.Schedule.MarketSchedule import Schedule  # Расписание т
 class MetaData(AbstractDataBase.__class__):
     def __init__(cls, name, bases, dct):
         super(MetaData, cls).__init__(name, bases, dct)  # Инициализируем класс данных
-        BTStore.DataCls = cls  # Регистрируем класс данных в хранилище
+        Store.DataCls = cls  # Регистрируем класс данных в хранилище
 
 
-class BTData(with_metaclass(MetaData, AbstractDataBase)):
+class Data(with_metaclass(MetaData, AbstractDataBase)):
     """Данные для BackTrader"""
     params = (
-        ('broker', default_broker),  # Брокер. Если не указан, то брокер по умолчанию
         ('schedule', None),  # Расписание. Если указано, то будем проверять полученные бары на соответствие расписанию
         ('four_price_doji', False),  # False - не пропускать дожи 4-х цен ("пустые" бары), True - пропускать
         ('live_bars', False),  # False - только история (для тестов), True - история и новые бары (для реальной торговли)
@@ -31,33 +28,15 @@ class BTData(with_metaclass(MetaData, AbstractDataBase)):
     sleep_time_sec = 1  # Время ожидания в секундах, если не пришел новый бар. Для снижения нагрузки/энергопотребления процессора
 
     def __init__(self, **kwargs):
-        self.broker: Broker = self.p.broker  # Брокер
+        self.store = Store(**kwargs)  # Хранилище BackTrader
+        self.logger = logging.getLogger(f'BTData.{self.store.broker.code}')  # Будем вести лог
         self.schedule: Schedule = self.p.schedule  # Расписание
-        self.logger = logging.getLogger(f'BTData.{self.broker.code}.{self.p.dataname}')  # Будем вести лог
-        self.store = BTStore(**kwargs)  # Хранилище BackTrader
-        self.symbol = self.broker.get_symbol_by_dataname(self.p.dataname)  # Тикер по названию
+        self.symbol = self.store.broker.get_symbol_by_dataname(self.p.dataname)  # Тикер по названию
         self.time_frame = self.bt_timeframe_to_tf(self.p.timeframe, self.p.compression)  # Конвертируем временной интервал из BackTrader
         self.history_bars = []  # Бары из хранилища и брокера
         self.exit_event = Event()  # Событие выхода из потока подписки на новые бары по расписанию
         self.last_bar_received = False  # Получен последний бар
         self.live_mode = False  # Режим получения бар. False = История, True = Новые бары
-
-    def _schedule_bars_thread(self) -> None:
-        """Поток получения новых бар по расписанию"""
-        while True:  # Работаем пока не придет пустое значение или событие отмены
-            trade_bar_open_datetime = self.p.schedule.trade_bar_open_datetime(self.schedule.market_datetime_now, self.time_frame)  # Дата и время открытия бара, который будем получать
-            trade_bar_request_datetime = self.schedule.trade_bar_request_datetime(self.schedule.market_datetime_now, self.time_frame)  # Дата и время запроса бара
-            wait_seconds = (trade_bar_request_datetime - self.schedule.market_datetime_now).total_seconds()  # Кол-во секунд до запроса последнего бара
-            self.logger.debug(f'Время до запроса бара {self.symbol.dataname} {self.time_frame} {wait_seconds} с')
-            exit_event_set = self.exit_event.wait(wait_seconds)  # Ждем до запроса следующего бара или до отмены
-            if exit_event_set:  # Если отмена
-                self.logger.debug(f'Отмена. Выход из потока очереди бар {self.symbol.dataname} {self.time_frame}')
-                return  # то выходим из потока, дальше не продолжаем
-            bars = self.broker.get_history(self.symbol, self.time_frame, trade_bar_open_datetime)  # Получаем бар когда наступит дата и время запроса
-            if bars is None:  # Если бар не получен
-                self.logger.warning(f'Бар {self.symbol.dataname} {self.time_frame} по расписанию на {trade_bar_open_datetime} не получен')
-            else:  # Если бар получен
-                self.store.new_bars.append(bars[0])  # то добавляем его в хранилище новых бар
 
     def islive(self):
         """Если подаем новые бары, то Cerebro не будет запускать preload и runonce, т.к. новые бары должны идти один за другим"""
@@ -65,20 +44,20 @@ class BTData(with_metaclass(MetaData, AbstractDataBase)):
 
     def setenvironment(self, env):
         """Добавление хранилища BackTrader в окружение"""
-        super(BTData, self).setenvironment(env)  # Сохраняем ссылку на окружение в базовом классе
+        super(Data, self).setenvironment(env)  # Сохраняем ссылку на окружение в базовом классе
         env.addstore(self.store)  # Добавляем хранилище BackTrader в окружение
 
     def start(self):
-        super(BTData, self).start()
+        super(Data, self).start()
         self.put_notification(self.DELAYED)  # Отправляем уведомление об отправке исторических (не новых) бар
-        self.history_bars = self.broker.get_history(self.symbol, self.time_frame, self.p.fromdate, self.p.todate)  # Получаем бары из хранилища и брокера
+        self.history_bars = self.store.broker.get_history(self.symbol, self.time_frame, self.p.fromdate, self.p.todate)  # Получаем исторические бары
         if len(self.history_bars) > 0:  # Если был получен хотя бы 1 бар
             self.put_notification(self.CONNECTED)  # то отправляем уведомление о подключении и начале получения исторических бар
         if not self.p.live_bars:  # Если получаеем только историю
             return  # то подписка на новые бары не нужна. Выходим, дальше не продолжаем
         if self.p.subscribe:  # Если получаем новые бары по подписке
             self.logger.debug(f'Запуск получения новыех бар {self.symbol.dataname} {self.time_frame} через подписку')
-            self.broker.subscribe_history(self.symbol, self.time_frame)
+            self.store.broker.subscribe_history(self.symbol, self.time_frame)
         else:  # Если получаем новые бары по расписанию
             self.logger.debug(f'Запуск получения новыех бар {self.symbol.dataname} {self.time_frame} по расписанию')
             Thread(target=self._schedule_bars_thread).start()  # Создаем и запускаем получение новых бар по расписанию в потоке
@@ -121,18 +100,35 @@ class BTData(with_metaclass(MetaData, AbstractDataBase)):
         return True  # Будем заходить сюда еще
 
     def stop(self):
-        super(BTData, self).stop()
+        super(Data, self).stop()
         if self.p.live_bars:  # Если была подписка/расписание
             if self.schedule is not None:  # Если получаем новые бары по расписанию
                 self.logger.info(f'Отмена подписки по расписанию на новые бары {self.symbol.dataname} {self.time_frame}')
                 self.exit_event.set()  # то отменяем расписание
             else:  # Если получаем новые бары по подписке
                 self.logger.info(f'Отмена подписки {self.guid} на новые бары {self.symbol.dataname} {self.time_frame}')
-                self.broker.unsubscribe_history(self.symbol, self.time_frame)  # то отменяем подписку
+                self.store.broker.unsubscribe_history(self.symbol, self.time_frame)  # то отменяем подписку
             self.put_notification(self.DISCONNECTED)  # Отправляем уведомление об окончании получения новых бар
         self.store.DataCls = None  # Удаляем класс данных в хранилище
 
-    # Функции конвертации
+    # Внутренние функции
+
+    def _schedule_bars_thread(self) -> None:
+        """Поток получения новых бар по расписанию"""
+        while True:  # Работаем пока не придет пустое значение или событие отмены
+            trade_bar_open_datetime = self.p.schedule.trade_bar_open_datetime(self.schedule.market_datetime_now, self.time_frame)  # Дата и время открытия бара, который будем получать
+            trade_bar_request_datetime = self.schedule.trade_bar_request_datetime(self.schedule.market_datetime_now, self.time_frame)  # Дата и время запроса бара
+            wait_seconds = (trade_bar_request_datetime - self.schedule.market_datetime_now).total_seconds()  # Кол-во секунд до запроса последнего бара
+            self.logger.debug(f'Время до запроса бара {self.symbol.dataname} {self.time_frame} {wait_seconds} с')
+            exit_event_set = self.exit_event.wait(wait_seconds)  # Ждем до запроса следующего бара или до отмены
+            if exit_event_set:  # Если отмена
+                self.logger.debug(f'Отмена. Выход из потока очереди бар {self.symbol.dataname} {self.time_frame}')
+                return  # то выходим из потока, дальше не продолжаем
+            bars = self.store.broker.get_history(self.symbol, self.time_frame, trade_bar_open_datetime)  # Получаем бар когда наступит дата и время запроса
+            if bars is None:  # Если бар не получен
+                self.logger.warning(f'Бар {self.symbol.dataname} {self.time_frame} по расписанию на {trade_bar_open_datetime} не получен')
+            else:  # Если бар получен
+                self.store.new_bars.append(bars[0])  # то добавляем его в хранилище новых бар
 
     @staticmethod
     def bt_timeframe_to_tf(timeframe, compression=1) -> str:

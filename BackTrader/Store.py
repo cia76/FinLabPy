@@ -3,7 +3,8 @@ from collections import deque
 from backtrader.metabase import MetaParams
 from backtrader.utils.py3 import with_metaclass
 
-from FinLabPy.Core import Broker, Bar
+from FinLabPy.Config import default_broker  # Брокер по умолчанию
+from FinLabPy.Core import Broker as FLBroker, Bar as FLBar
 
 
 class MetaSingleton(MetaParams):
@@ -18,7 +19,7 @@ class MetaSingleton(MetaParams):
         return cls._singleton  # Возвращаем экземпляр класса
 
 
-class BTStore(with_metaclass(MetaSingleton, object)):
+class Store(with_metaclass(MetaSingleton, object)):
     """Хранилище BackTrader"""
 
     BrokerCls = None  # Класс брокера будет задан из брокера
@@ -34,11 +35,11 @@ class BTStore(with_metaclass(MetaSingleton, object)):
         """Новый экземпляр класса брокера с заданными параметрами"""
         return cls.BrokerCls(*args, **kwargs)
 
-    def __init__(self, broker: Broker):
-        super(BTStore, self).__init__()
-        self.broker = broker  # Подключаемся к брокеру
+    def __init__(self, **kwargs):
+        super(Store, self).__init__()
+        self.broker: FLBroker = kwargs['broker'] if 'broker' in kwargs.keys() else default_broker  # Подключаемся к брокеру если указан. Иначе, используем брокера по умолчанию
         self.notifs = deque()  # Очередь уведомлений
-        self.new_bars: list[Bar] = []  # Спиоск новых бар по всем подпискам на тикеры
+        self.new_bars: list[FLBar] = []  # Спиоск новых бар по всем подпискам на тикеры
 
     def start(self):
         self.broker.on_new_bar = lambda bar: self.new_bars.append(bar)  # При поступлении нового бара добавляем его в список новых бар
