@@ -11,7 +11,7 @@ class Symbol:
     def __init__(self, board: str, symbol: str, dataname: str, description: str, decimals: int, min_step: float, lot_size: int, broker_info=None):
         self.board = board  # Код режима торгов
         self.symbol = symbol  # Тикер
-        self.dataname = dataname  # Название тикера
+        self.dataname = dataname  # Название тикера. Уникальное значение
         self.description = description  # Описание тикера
         self.decimals = decimals  # Кол-во десятичных знаков в цене
         self.min_step = min_step  # Минимальный шаг цены
@@ -29,7 +29,7 @@ class Bar:
         self.symbol = symbol  # Тикер
         self.dataname = dataname  # Название тикера
         self.time_frame = time_frame  # Временной интервал
-        self.datetime = datetime
+        self.datetime = datetime  # Дата и время открытия бара по времени биржи
         self.open = open  # Цена открытия
         self.high = high  # Максимальная цена
         self.low = low  # Минимальная цена
@@ -59,8 +59,8 @@ class Order:
         self.dataname = dataname  # Название тикера
         self.decimals = decimals  # Кол-во десятичных знаков в цене
         self.quantity = quantity  # Кол-во в штуках
-        self.price = price  # Цена
-        self.stop_price = stop_price  # Стоп цена
+        self.price = price  # Лимитная цена для лимитных и стоп лимитных заявок
+        self.stop_price = stop_price  # Стоп цена срабатывания для стоп и стоп лимитных заявок
         self.status = status  # Статус заявки
 
     def __repr__(self):
@@ -76,11 +76,13 @@ class Order:
 
 class Trade:
     """Сделка"""
-    def __init__(self, broker, dataname: str, description: str, decimals: int, quantity: int, price: int | float):
+    def __init__(self, broker, order_id: str, dataname: str, description: str, decimals: int, datetime: datetime, quantity: int, price: int | float):
         self.broker = broker  # Брокер
+        self.order_id = order_id  # Уникальный код заявки, по которой исполнилась сделка
         self.dataname = dataname  # Название тикера
         self.description = description  # Описание тикера
         self.decimals = decimals  # Кол-во десятичных знаков в цене
+        self.datetime = datetime  # Дата и время сделки по времени биржи
         self.quantity = quantity  # Кол-во в штуках. Положительное - длинная позиция, отрицательное - короткая позиция
         self.price = price  # Цена исполнения в рублях
 
@@ -188,7 +190,7 @@ class Broker:
         """Активные заявки"""
         raise NotImplementedError
 
-    def new_order(self, order: Order) -> None:
+    def new_order(self, order: Order) -> bool:
         """Создание и отправка заявки брокеру"""
         raise NotImplementedError
 
