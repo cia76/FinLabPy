@@ -43,7 +43,8 @@ class FileStorage(Storage):
             self.logger.debug(f'Бары отстутствуют')
             return None  # то выходим, дальше не продолжаем
         if dt_from is not None or dt_to is not None:  # Если задан фильтр с ... по ...
-            self.logger.debug(f'Фильтр с {dt_from:{self.dt_format}} по {dt_to:{self.dt_format}}')
+            str_filter = f'с {dt_from:{self.dt_format}}' if dt_from is not None else f'по {dt_to:{self.dt_format}}' if dt_to is not None else f'с {dt_from:{self.dt_format}} по {dt_to:{self.dt_format}}'
+            self.logger.debug(f'Фильтр {str_filter}')
             self.logger.debug(f'Первый бар    : {bars[0]}')
             self.logger.debug(f'Последний бар : {bars[-1]}')
             self.logger.debug(f'Кол-во бар    : {len(bars)}')
