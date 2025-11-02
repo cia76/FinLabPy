@@ -20,10 +20,9 @@ class MetaData(AbstractDataBase.__class__):
 class Data(with_metaclass(MetaData, AbstractDataBase)):
     """Данные для BackTrader"""
     params = (
-        ('schedule', None),  # Расписание. Если указано, то будем проверять полученные бары на соответствие расписанию
         ('four_price_doji', False),  # False - не пропускать дожи 4-х цен ("пустые" бары), True - пропускать
         ('live_bars', False),  # False - только история (для тестов), True - история и новые бары (для реальной торговли)
-        ('subscribe', True),  # Источник бар для реальной торговли. False - расписание (должно быть указано), True - подписка
+        ('schedule', None),  # Экземпляр класса расписания. Если указано, то будем запрашивать новые бары из истории по расписанию. Иначе, подписываемся на новые бары
     )
     sleep_time_sec = 1  # Время ожидания в секундах, если не пришел новый бар. Для снижения нагрузки/энергопотребления процессора
 
@@ -32,13 +31,13 @@ class Data(with_metaclass(MetaData, AbstractDataBase)):
         self.logger = logging.getLogger(f'BTData.{self.store.broker.code}')  # Будем вести лог
         self.schedule: Schedule = self.p.schedule  # Расписание
         self.symbol = self.store.broker.get_symbol_by_dataname(self.p.dataname)  # Тикер по названию
-        self.time_frame = self.bt_timeframe_to_tf(self.p.timeframe, self.p.compression)  # Конвертируем временной интервал из BackTrader
+        self.time_frame = self._bt_timeframe_to_tf(self.p.timeframe, self.p.compression)  # Конвертируем временной интервал из BackTrader
         self.history_bars = []  # Бары из хранилища и брокера
         self.exit_event = Event()  # Событие выхода из потока подписки на новые бары по расписанию
         self.last_bar_received = False  # Получен последний бар
         self.live_mode = False  # Режим получения бар. False = История, True = Новые бары
 
-    def islive(self):
+    def islive(self) -> bool:
         """Если подаем новые бары, то Cerebro не будет запускать preload и runonce, т.к. новые бары должны идти один за другим"""
         return self.p.live_bars
 
@@ -55,14 +54,14 @@ class Data(with_metaclass(MetaData, AbstractDataBase)):
             self.put_notification(self.CONNECTED)  # то отправляем уведомление о подключении и начале получения исторических бар
         if not self.p.live_bars:  # Если получаеем только историю
             return  # то подписка на новые бары не нужна. Выходим, дальше не продолжаем
-        if self.p.subscribe:  # Если получаем новые бары по подписке
+        if self.schedule is None:  # Если получаем новые бары по подписке
             self.logger.debug(f'Запуск получения новыех бар {self.symbol.dataname} {self.time_frame} через подписку')
             self.store.broker.subscribe_history(self.symbol, self.time_frame)
         else:  # Если получаем новые бары по расписанию
             self.logger.debug(f'Запуск получения новыех бар {self.symbol.dataname} {self.time_frame} по расписанию')
             Thread(target=self._schedule_bars_thread).start()  # Создаем и запускаем получение новых бар по расписанию в потоке
 
-    def _load(self):
+    def _load(self) -> bool | None:
         """Загрузка бара из истории или нового бара"""
         if len(self.history_bars) > 0:  # Если есть исторические данные
             bar = self.history_bars.pop(0)  # Берем и удаляем первый бар из хранилища. С ним будем работать
@@ -87,9 +86,10 @@ class Data(with_metaclass(MetaData, AbstractDataBase)):
             elif self.live_mode and not self.last_bar_received:  # Если находимся в режиме получения новых бар (LIVE)
                 self.put_notification(self.DELAYED)  # Отправляем уведомление об отправке исторических (не новых) бар
                 self.live_mode = False  # Переходим в режим получения истории
-        if not self.p.four_price_doji and bar.high == bar.low:  # Если не пропускаем дожи 4-х цен, но такой бар пришел
+        if bar.high == bar.low:  # Если пришел бар дожи 4-х цен
             self.logger.debug(f'Бар {bar} - дожи 4-х цен')
-            return None  # то нового бара нет, будем заходить еще
+            if not self.p.four_price_doji:  # Если не пропускаем дожи 4-х цен
+                return None  # то нового бара нет, будем заходить еще
         self.lines.datetime[0] = date2num(bar.datetime)  # Переводим в формат хранения даты/времени в BackTrader
         self.lines.open[0] = bar.open
         self.lines.high[0] = bar.high
@@ -116,7 +116,7 @@ class Data(with_metaclass(MetaData, AbstractDataBase)):
     def _schedule_bars_thread(self) -> None:
         """Поток получения новых бар по расписанию"""
         while True:  # Работаем пока не придет пустое значение или событие отмены
-            trade_bar_open_datetime = self.p.schedule.trade_bar_open_datetime(self.schedule.market_datetime_now, self.time_frame)  # Дата и время открытия бара, который будем получать
+            trade_bar_open_datetime = self.schedule.trade_bar_open_datetime(self.schedule.market_datetime_now, self.time_frame)  # Дата и время открытия бара, который будем получать
             trade_bar_request_datetime = self.schedule.trade_bar_request_datetime(self.schedule.market_datetime_now, self.time_frame)  # Дата и время запроса бара
             wait_seconds = (trade_bar_request_datetime - self.schedule.market_datetime_now).total_seconds()  # Кол-во секунд до запроса последнего бара
             self.logger.debug(f'Время до запроса бара {self.symbol.dataname} {self.time_frame} {wait_seconds} с')
@@ -131,7 +131,7 @@ class Data(with_metaclass(MetaData, AbstractDataBase)):
                 self.store.new_bars.append(bars[0])  # то добавляем его в хранилище новых бар
 
     @staticmethod
-    def bt_timeframe_to_tf(timeframe, compression=1) -> str:
+    def _bt_timeframe_to_tf(timeframe, compression=1) -> str:
         """Перевод временнОго интервала из BackTrader для имени файла истории и расписания https://ru.wikipedia.org/wiki/Таймфрейм
 
         :param TimeFrame timeframe: Временной интервал
