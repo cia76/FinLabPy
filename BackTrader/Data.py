@@ -70,7 +70,7 @@ class Data(with_metaclass(MetaData, AbstractDataBase)):
             self.logger.debug('Бары из файла/истории отправлены в ТС. Новые бары получать не нужно. Выход')
             return False  # Больше сюда заходить не будем
         else:  # Если получаем историю и новые бары (self.store.new_bars)
-            new_bars = [new_bar for new_bar in self.store.new_bars if new_bar.symbol == self.symbol and new_bar.time_frame == self.time_frame]  # Получаем новые бары из хранилища по guid
+            new_bars = [new_bar for new_bar in self.store.new_bars if new_bar.symbol == self.symbol.symbol and new_bar.time_frame == self.time_frame]  # Получаем новые бары из хранилища по guid
             if len(new_bars) == 0:  # Если новый бар еще не появился
                 # self.logger.debug(f'Новых бар нет. Ожидание {self.sleep_time_sec} с')  # Для отладки. Грузит процессор
                 sleep(self.sleep_time_sec)  # Ждем для снижения нагрузки/энергопотребления процессора
