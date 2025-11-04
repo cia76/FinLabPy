@@ -246,6 +246,8 @@ class Storage:
         raise NotImplementedError
 
 
+# Функции конвертации
+
 def bars_to_df(bars: list[Bar]) -> pd.DataFrame:
     """Перевод списка бар в pandas DataFrame с индексом по дате/времени бара"""
     pd_bars = pd.DataFrame.from_records([bar.to_dict() for bar in bars], index='datetime')  # Переводим в pandas DataFrame
