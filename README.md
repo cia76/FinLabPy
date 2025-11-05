@@ -17,7 +17,7 @@
 - **Интеграция** с лучшими системами
   - Красивые графики [Lighweight Charts](https://www.tradingview.com/lightweight-charts/) от TradingView
   - Сотни популярных индикаторов от [TA-Lib](https://ta-lib.org/)
-  - Тестирование и автоматическая торговля через [BackTrader](https://www.backtrader.com/)
+  - Тестирование и автоматическая торговля через [BackTrader](https://www.backtrader.com/). Разбор разных типов торговых систем приведен в курсе [Торговая система за вечер с индикаторами и компонентами](https://finlab.vip/wpm-category/bttsindcomp/)
 - **Решения**
   - Управление торговлей через ботов Telegram и Discord. Набор [Мультиброкер](https://finlab.vip/wpm-category/mb/)
 
