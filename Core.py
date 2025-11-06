@@ -186,6 +186,21 @@ class Broker:
         """Открытые позиции"""
         raise NotImplementedError
 
+    def get_position(self, symbol: Symbol) -> Position:
+        """Открытая или пустая позиция по тикеру"""
+        self.get_positions()  # Получаем все открытые позиции
+        position = next((position for position in self.positions if position.dataname == symbol.dataname), None)  # Из них пробуем получить позицию по тикеру
+        if position is None:  # Если позиции не существует
+            position = Position(
+                self,  # Брокер
+                symbol.dataname,  # Название тикера
+                symbol.description,  # Описание тикера
+                symbol.decimals,  # Кол-во десятичных знаков в цене
+                0,  # Кол-во в штуках (позиция закрыта)
+                0,  # Цена входа в рублях за штуку (не имеет смысла для закрытой позиции)
+                self.get_last_price(symbol))  # Последняя цена в рублях за штуку
+        return position
+
     def get_orders(self) -> list[Order]:
         """Активные заявки"""
         raise NotImplementedError
