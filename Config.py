@@ -12,7 +12,6 @@ from FinLabPy.Brokers.Tinvest import Tinvest  # Брокер Т-Инвестиц
 # from QuikPy import QuikPy  # Провайдер QUIK
 # from FinLabPy.Brokers.Quik import Quik  # Брокер QUIK
 
-
 # Провайдеры
 ap_provider = AlorPy()  # Провайдер Алор. Для демо счета AlorPy(demo=True)
 fp_provider = FinamPy()  # Провайдер Финам
