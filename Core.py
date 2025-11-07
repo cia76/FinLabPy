@@ -144,6 +144,7 @@ class Broker:
             self.storage = FileStorage(self.__class__.__name__)  # Инициализируем хранилище
         self.positions: list[Position] = []  # Текущие позиции
         self.orders: list[Order] = []  # Активные заявки
+        self.history_subscriptions: dict[tuple[Symbol, str], any] = {}  # Справочник подписок на историю тикеров
 
     def get_symbol_by_dataname(self, dataname: str) -> Symbol | None:
         """Тикер по названию"""
@@ -165,6 +166,12 @@ class Broker:
     def unsubscribe_history(self, symbol: Symbol, time_frame: str) -> None:
         """Отмена подписки на историю тикера"""
         raise NotImplementedError
+
+    def unsubscribe_all_history(self):
+        """Отмена всех подписок на историю"""
+        for (symbol, time_frame) in self.history_subscriptions.keys():  # Пробегаемся по всем подпискам
+            self.unsubscribe_history(symbol, time_frame)  # отменяем подписку
+        self.history_subscriptions = {}  # Очищаем справочник подписок
 
     def on_new_bar(self, bar: Bar) -> None:
         """Получение нового бара по подписке"""
