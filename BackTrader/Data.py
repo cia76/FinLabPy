@@ -26,7 +26,9 @@ class Data(with_metaclass(MetaData, AbstractDataBase)):
         ('live_bars', False),  # False - только история (для тестов), True - история и новые бары (для реальной торговли)
         ('schedule', None),  # Экземпляр класса расписания. Если указано, то будем запрашивать новые бары из истории по расписанию. Иначе, подписываемся на новые бары
     )
+    dt_format = '%d.%m.%Y %H:%M'  # Формат представления даты и времени в файле истории. По умолчанию русский формат
     sleep_time_sec = 1  # Время ожидания в секундах, если не пришел новый бар. Для снижения нагрузки/энергопотребления процессора
+    delta = 3  # Корректировка в секундах при проверке времени окончания бара
 
     def __init__(self, **kwargs):
         self.store = Store(**kwargs)  # Хранилище BackTrader
@@ -34,7 +36,7 @@ class Data(with_metaclass(MetaData, AbstractDataBase)):
         self.schedule: Schedule = self.p.schedule if self.p.schedule is not None else Schedule([Session(time(0, 0, 0), time(23, 59, 59))])  # Расписание для запроса бар или круглосуточное
         self.symbol = self.store.broker.get_symbol_by_dataname(self.p.dataname)  # Тикер по названию
         self.time_frame = self._bt_timeframe_to_tf(self.p.timeframe, self.p.compression)  # Конвертируем временной интервал из BackTrader
-        self.history_bars = []  # Бары из хранилища и брокера
+        self.history_bars: list[Bar] = []  # Бары из хранилища и брокера
         self.exit_event = Event()  # Событие выхода из потока подписки на новые бары по расписанию
         self.last_bar_received = False  # Получен последний бар
         self.live_mode = False  # Режим получения бар. False = История, True = Новые бары
@@ -52,7 +54,10 @@ class Data(with_metaclass(MetaData, AbstractDataBase)):
     def start(self):
         super(Data, self).start()
         self.put_notification(self.DELAYED)  # Отправляем уведомление об отправке исторических (не новых) бар
-        self.history_bars = self.store.broker.get_history(self.symbol, self.time_frame, self.p.fromdate, self.p.todate)  # Получаем исторические бары
+        history_bars = self.store.broker.get_history(self.symbol, self.time_frame, self.p.fromdate, self.p.todate)  # Получаем исторические бары
+        for history_bar in history_bars:  # Пробегаемся по всем историческим барам
+            if self._is_bar_valid(history_bar):  # Если бар соответствует условиям выборки
+                self.history_bars.append(history_bar)  # то добавляем его в бары хранилища и брокера
         if len(self.history_bars) > 0:  # Если был получен хотя бы 1 бар
             self.put_notification(self.CONNECTED)  # то отправляем уведомление о подключении и начале получения исторических бар
         if not self.p.live_bars:  # Если получаеем только историю
@@ -66,10 +71,8 @@ class Data(with_metaclass(MetaData, AbstractDataBase)):
 
     def _load(self) -> bool | None:
         """Загрузка бара из истории или нового бара"""
-        if len(self.history_bars) > 0:  # Если есть исторические данные
+        if len(self.history_bars) > 0:  # Пока есть исторические данные
             bar = self.history_bars.pop(0)  # Берем и удаляем первый бар из хранилища. С ним будем работать
-            if not self._is_bar_valid(bar):  # Если бар не соответствует условиям выборки
-                return None  # то нового бара нет, будем заходить еще
         elif not self.p.live_bars:  # Если получаем только историю (self.history_bars) и исторических данных нет / все исторические данные получены
             self.put_notification(self.DISCONNECTED)  # Отправляем уведомление об окончании получения исторических бар
             self.logger.debug('Бары из файла/истории отправлены в ТС. Новые бары получать не нужно. Выход')
@@ -92,6 +95,7 @@ class Data(with_metaclass(MetaData, AbstractDataBase)):
             elif self.live_mode and not self.last_bar_received:  # Если находимся в режиме получения новых бар (LIVE)
                 self.put_notification(self.DELAYED)  # Отправляем уведомление об отправке исторических (не новых) бар
                 self.live_mode = False  # Переходим в режим получения истории
+        # Все проверки пройдены. Записываем полученный исторический/новый бар
         self.lines.datetime[0] = date2num(bar.datetime)  # Переводим в формат хранения даты/времени в BackTrader
         self.lines.open[0] = bar.open
         self.lines.high[0] = bar.high
