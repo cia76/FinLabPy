@@ -129,6 +129,7 @@ class Broker:
         self.name = name  # Название провайдера
         self.provider = provider  # Провайдер
         self.account_id = account_id  # Порядковый номер счета
+
         if storage == 'file':  # Если файловое хранилище
             from FinLabPy.Storage.FileStorage import FileStorage  # то ипортируем библиотеку файлового хранилища
             self.storage = FileStorage(self.__class__.__name__)  # Инициализируем хранилище
@@ -142,9 +143,15 @@ class Broker:
         else:  # В остальных случаях
             from FinLabPy.Storage.FileStorage import FileStorage  # то ипортируем библиотеку файлового хранилища
             self.storage = FileStorage(self.__class__.__name__)  # Инициализируем хранилище
+
         self.positions: list[Position] = []  # Текущие позиции
         self.orders: list[Order] = []  # Активные заявки
+
         self.history_subscriptions: dict[tuple[Symbol, str], any] = {}  # Справочник подписок на историю тикеров
+        self.on_new_bar = Event()  # Получение нового бара по подписке
+        self.on_order = Event()  # Получение заявки по подписке
+        self.on_trade = Event()  # Получение сделки по подписке
+        self.on_position = Event()  # Получение позиции по подписке
 
     def get_symbol_by_dataname(self, dataname: str) -> Symbol | None:
         """Тикер по названию"""
@@ -172,10 +179,6 @@ class Broker:
         for (symbol, time_frame) in self.history_subscriptions.keys():  # Пробегаемся по всем подпискам
             self.unsubscribe_history(symbol, time_frame)  # отменяем подписку
         self.history_subscriptions = {}  # Очищаем справочник подписок
-
-    def on_new_bar(self, bar: Bar) -> None:
-        """Получение нового бара по подписке"""
-        raise NotImplementedError
 
     def get_last_price(self, symbol: Symbol) -> float | None:
         """Последняя цена тикера"""
@@ -228,18 +231,6 @@ class Broker:
         """Отмена подписки на заявки, сделки, позиции"""
         raise NotImplementedError
 
-    def on_order(self, order: Order) -> None:
-        """Получение заявки по подписке"""
-        raise NotImplementedError
-
-    def on_trade(self, trade: Trade) -> None:
-        """Получение сделки по подписке"""
-        raise NotImplementedError
-
-    def on_position(self, position: Position) -> None:
-        """Получение позиции по подписке"""
-        raise NotImplementedError
-
     def close(self) -> None:
         """Закрытие провайдера"""
         raise NotImplementedError
@@ -267,6 +258,27 @@ class Storage:
         """Сохранение бар"""
         raise NotImplementedError
 
+
+class Event(object):
+    """Обработка событий. По статье https://www.pythontutorials.net/blog/does-python-classes-support-events-like-other-languages/"""
+    def __init__(self):
+        self._callbacks = []  # Список функций обратного вызова - функции, которые будут вызываться на событие
+
+    def subscribe(self, callback):
+        """Добавление функции обратного вызова (подписка)"""
+        if callback not in self._callbacks:  # Если этой фукнции еще нет
+            self._callbacks.append(callback)  # то добавляем ее в список функций обратного вызова
+
+    def unsubscribe(self, callback):
+        """Удаление функции обратного вызова (отмена подписки)"""
+        if callback in self._callbacks:  # Если эта функция есть
+            self._callbacks.remove(callback)  # то удаляем ее из списка функций обратного вызова
+
+    def trigger(self, *args, **kwargs):
+        """Запуск всех функций обратного вызова с аргументами"""
+        # Iterate over a copy of the list to allow unsubscribing during iteration
+        for callback in self._callbacks[:]:  # Пробегаемся по копии списка функций обратного вызова, чтобы разрешить удаление, пока функции выполняются
+            callback(*args, **kwargs)  # Выполняем функцию обратного вызова
 
 # Функции конвертации
 
