@@ -42,7 +42,7 @@ class Store(with_metaclass(MetaSingleton, object)):
         self.new_bars: list[FLBar] = []  # Спиоск новых бар по всем подпискам на тикеры
 
     def start(self):
-        self.broker.on_new_bar = lambda bar: self.new_bars.append(bar)  # При поступлении нового бара добавляем его в список новых бар
+        self.broker.on_new_bar.subscribe(self._on_new_bar)  # Подписываемся на новые бары
 
     def put_notification(self, msg, *args, **kwargs):
         """Добавление уведомлений в хранилище"""
@@ -54,4 +54,7 @@ class Store(with_metaclass(MetaSingleton, object)):
         return [x for x in iter(self.notifs.popleft, None)]  # Собираем накопленные уведомления в порядке их поступления до пустого элемента (до конца)
 
     def stop(self):
+        self.broker.on_new_bar.unsubscribe(self._on_new_bar)  # Отписываемся от новых бар
         self.broker.close()  # Перед выходом закрываем провайдер брокера
+
+    def _on_new_bar(self, bar: FLBar): self.new_bars.append(bar)  # При поступлении нового бара добавляем его в список новых бар
