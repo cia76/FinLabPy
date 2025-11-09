@@ -1,54 +1,27 @@
 from datetime import datetime
 import itertools  # Итератор для уникальных номеров транзакций
 
-from FinLabPy.Core import Broker, Position, Symbol, Order, Bar  # Брокер, позиция, заявка, тикер
+from FinLabPy.Core import Broker, Bar, Position, Trade, Order, Symbol  # Брокер, бар, позиция, сделка, заявка, тикер
 from QuikPy import QuikPy  # Работа с QUIK из Python через LUA скрипты QuikSharp
 
 
 class Quik(Broker):
     """Брокер QUIK"""
-
-    def __init__(self, code: str, name: str, provider: QuikPy, account_id: int = 0, limit_kind: int = 1, lots=True, storage: str = 'file'):
+    def __init__(self, code, name, provider: QuikPy, account_id=0, limit_kind=1, lots=True, storage='file'):
         super().__init__(code, name, provider, account_id, storage)
         self.provider = provider  # Уже инициирован в базовом классе. Выполням для того, чтобы работать с типом провайдера
-        self.provider.on_new_candle = self._new_bar  # Обработчик получения новой свечки
-        self.provider.on_trans_reply = self._trans_reply  # Ответ на транзакцию пользователя. Если транзакция выполняется из QUIK, то не вызывается
         self.account = next((account for account in self.provider.accounts if account['account_id'] == account_id), self.provider.accounts[0])  # Счет
         self.limit_kind = limit_kind  # Срок расчетов
         self.lots = lots  # Входящий остаток в лотах (задается брокером)
         self.class_codes = self.provider.get_classes_list()['data']  # Режимы торгов через запятую
         self.trans_id = itertools.count(1)  # Номер транзакции задается пользователем. Он будет начинаться с 1 и каждый раз увеличиваться на 1
+        self.trade_nums = {}  # Список номеров сделок по тикеру для фильтрации дублей сделок
 
-    def _get_symbol_info(self, class_code, sec_code) -> Symbol | None:
-        si = self.provider.get_symbol_info(class_code, sec_code)  # Спецификация тикера
-        if not si:  # Если тикер не найден
-            print(f'Информация о тикере {class_code}.{sec_code} не найдена')
-            return None  # То выходим, дальше не продолжаем
-        dataname = self.provider.class_sec_codes_to_dataname(si.board, si.ticker)  # Название тикера
-        symbol = Symbol(class_code, sec_code, dataname, si['short_name'], si['scale'], si['min_price_step'], si['lot_size'])
-        self.storage.set_symbol(symbol)  # Добавляем спецификацию тикера в хранилище
-        return symbol
-
-    def _new_bar(self, data):
-        """Разбор получения нового бара"""
-        bar = data['data']  # Данные бара
-        class_code = bar['class']  # Код режима торгов
-        sec_code = bar['sec']  # Тикер
-        dataname = self.provider.class_sec_codes_to_dataname(class_code, sec_code)  # Название тикера
-        time_frame, _ = self.provider.quik_timeframe_to_timeframe(bar['interval'])  # Временной интервал
-        dt_json = bar['datetime']  # Получаем составное значение даты и времени открытия бара
-        dt = datetime(dt_json['year'], dt_json['month'], dt_json['day'], dt_json['hour'], dt_json['min'])  # Время открытия бара
-        self.on_new_bar(Bar(class_code, sec_code, dataname, time_frame, dt, bar['open'], bar['high'], bar['low'], bar['close'], int(bar['volume'])))  # Вызываем событие добавления нового бара
-
-    def _trans_reply(self, data):
-        """Разбор получения ответа на транзакцию пользователя"""
-        trans_id = data['data']['trans_id']  # Номер транзакции
-        order_num = data['data']['order_num']  # Номер заявки
-        order = next((order for order in self.orders if order.id == trans_id), None)  # Ищем заявку по номеру транзакции
-        if not order:  # Если заявка не найдена
-            print(f'Заявка {order_num} с номером транзакции {trans_id} не найдена')
-            return  # то выходим, дальше не продолжаем
-        order.id = order_num  # Ставим номер заявки
+        self.provider.on_new_candle.subscribe(self._on_new_bar)  # Обработка нового бара
+        self.provider.on_trans_reply.subscribe(self._on_trans_reply)  # Обработка транзакций
+        self.provider.on_order.subscribe(self._on_order)  # Обработка заявок
+        self.provider.on_stop_order.subscribe(self._on_stop_order)  # Обработка стоп заявок
+        self.provider.on_trade.subscribe(self._on_trade)  # Обработка сделок
 
     def get_symbol_by_dataname(self, dataname):
         symbol = self.storage.get_symbol(dataname)  # Проверяем, есть ли спецификация тикера в хранилище
@@ -63,10 +36,8 @@ class Quik(Broker):
         quik_tf, _ = self.provider.timeframe_to_quik_timeframe(time_frame)  # Временной интервал QUIK
         history = self.provider.get_candles_from_data_source(symbol.board, symbol.symbol, quik_tf)  # Получаем все бары из QUIK. Фильтрацию по дате и времени будем делать при разборе баров
         if not history:  # Если бары не получены
-            print('Ошибка при получении истории: История не получена')
             return None  # то выходим, дальше не продолжаем
         if 'data' not in history:  # Если бар нет в словаре
-            print(f'Ошибка при получении истории: {history}')
             return None  # то выходим, дальше не продолжаем
         bars = []  # Список полученных бар
         for bar in history['data']:  # Пробегаемся по всем полученным барам
@@ -80,12 +51,16 @@ class Quik(Broker):
         return bars
 
     def subscribe_history(self, symbol, time_frame):
+        if (symbol, time_frame) in self.history_subscriptions.keys():  # Если подписка уже есть
+            return  # то выходим, дальше не продолжаем
         quik_tf, _ = self.provider.timeframe_to_quik_timeframe(time_frame)  # Временной интервал QUIK
         self.provider.subscribe_to_candles(symbol.board, symbol.symbol, quik_tf)  # Подписываемся на бары
+        self.history_subscriptions[(symbol, time_frame)] = True  # Ставим отметку в справочнике подписок
 
     def unsubscribe_history(self, symbol, time_frame):
         quik_tf, _ = self.provider.timeframe_to_quik_timeframe(time_frame)  # Временной интервал QUIK
         self.provider.unsubscribe_from_candles(symbol.board, symbol.symbol, quik_tf)  # Отменяем подписку на бары
+        del self.history_subscriptions[(symbol, time_frame)]  # Удаляем из справочника подписок
 
     def get_last_price(self, symbol):
         last_price = float(self.provider.get_param_ex(symbol.board, symbol.symbol, 'LAST')['data']['param_value'])  # Последняя цена сделки
@@ -97,11 +72,10 @@ class Quik(Broker):
             try:  # Пытаемся получить стоимость позиций
                 return float(self.provider.get_futures_limit(self.account['firm_id'], self.account['trade_account_id'], 0, self.provider.currency)['data']['cbplused'])  # Тек.чист.поз. (Заблокированное ГО под открытые позиции)
             except Exception:  # При ошибке Futures limit returns nil
-                print(f'get_value: QUIK не вернул фьючерсные лимиты с firm_id={self.account["firm_id"]}, trade_account_id={self.account["trade_account_id"]}, currency_code={self.provider.currency}. Проверьте правильность значений')
                 return 0  # Выдаем пустое значение. Получим стоимость позиций когда сервер будет работать
         # Для остальных рынков
         self.get_positions()  # Получаем текущие позиции
-        return round(sum([position.current_price * position.quantity for position in self.positions]), 2)  #
+        return round(sum([position.current_price * position.quantity for position in self.positions]), 2)  # Суммируем текущую ст-сть всех позиций
 
     def get_cash(self):
         if self.account['futures']:  # Для срочного рынка
@@ -117,12 +91,10 @@ class Quik(Broker):
                 futures_limit = self.provider.get_futures_limit(self.account['firm_id'], self.account['trade_account_id'], 0, self.provider.currency)['data']  # Фьючерсные лимиты
                 return float(futures_limit['cbplimit']) + float(futures_limit['varmargin']) + float(futures_limit['accruedint'])  # Лимит откр.поз. + Вариац.маржа + Накоплен.доход
             except Exception:  # При ошибке Futures limit returns nil
-                print(f'get_cash: QUIK не вернул фьючерсные лимиты с firm_id={self.account["firm_id"]}, trade_account_id={self.account["trade_account_id"]}, currency_code={self.provider.currency}. Проверьте правильность значений')
                 return 0  # Выдаем пустое значение. Получим стоимость позиций когда сервер будет работать
         # Для остальных рынков
         money_limits = self.provider.get_money_limits()['data']  # Все денежные лимиты (остатки на счетах)
         if len(money_limits) == 0:  # Если денежных лимитов нет
-            print('get_cash: QUIK не вернул денежные лимиты (остатки на счетах). Свяжитесь с брокером')
             return 0
         cash = [money_limit for money_limit in money_limits  # Из всех денежных лимитов
                 if money_limit['client_code'] == self.account['client_code'] and  # выбираем по коду клиента
@@ -130,16 +102,13 @@ class Quik(Broker):
                 money_limit['limit_kind'] == self.limit_kind and  # дню лимита
                 money_limit["currcode"] == self.provider.currency]  # и валюте
         if len(cash) != 1:  # Если ни один денежный лимит не подходит
-            # print(f'Полученные денежные лимиты: {money_limits}')  # Для отладки, если нужно разобраться, что указано неверно
-            print(f'get_cash: Денежный лимит не найден с client_code={self.account["client_code"]}, firm_id={self.account["firm_id"]}, limit_kind={self.limit_kind}, currency_code={self.provider.currency}. Проверьте правильность значений')
             return 0
         return float(cash[0]['currentbal'])  # Денежный лимит (остаток) по счету
 
     def get_positions(self):
         self.positions = []  # Текущие позиции
         if self.account['futures']:  # Для срочного рынка
-            futures_holdings = self.provider.get_futures_holdings()['data']  # Все фьючерсные позиции
-            active_futures_holdings = [futures_holding for futures_holding in futures_holdings if futures_holding['totalnet'] != 0]  # Активные фьючерсные позиции
+            active_futures_holdings = [futures_holding for futures_holding in self.provider.get_futures_holdings()['data'] if futures_holding['totalnet'] != 0]  # Активные фьючерсные позиции
             for active_futures_holding in active_futures_holdings:  # Пробегаемся по всем активным фьючерсным позициям
                 class_code = 'SPBFUT'  # Код режима торгов
                 sec_code = active_futures_holding['sec_code']  # Код тикера
@@ -189,9 +158,10 @@ class Quik(Broker):
         for firm_order in firm_orders:  # Пробегаемся по всем заявкам
             buy = firm_order['flags'] & 0b100 != 0b100  # Заявка на покупку
             class_code = firm_order['class_code']  # Код режима торгов
-            sec_code = firm_order["sec_code"]  # Тикер
+            sec_code = firm_order['sec_code']  # Тикер
             symbol = self._get_symbol_info(class_code, sec_code)  # Спецификация тикера
             order_price = self.provider.quik_price_to_price(class_code, sec_code, firm_order['price'])  # Цена заявки в рублях за штуку
+            status = self._ext_order_status_to_status(int(firm_order['ext_order_status']))  # Статус заявки по расширенному статусу заявки
             self.orders.append(Order(  # Добавляем заявки в список
                 self,  # Брокер
                 firm_order['order_num'],  # Уникальный код заявки
@@ -200,7 +170,8 @@ class Quik(Broker):
                 symbol.dataname,  # Название тикера
                 symbol.decimals,  # Кол-во десятичных знаков в цене
                 firm_order['qty'] * symbol.lot_size,  # Кол-во в штуках
-                order_price))  # Цена
+                order_price,  # Цена
+                status=status))  # Статус
         firm_stop_orders = [stopOrder for stopOrder in self.provider.get_all_stop_orders()['data'] if stopOrder['firmid'] == self.account['firm_id'] and stopOrder['flags'] & 0b1 == 0b1]  # Активные стоп заявки по фирме
         for firm_stop_order in firm_stop_orders:  # Пробегаемся по всем стоп заявкам
             buy = firm_stop_order['flags'] & 0b100 != 0b100  # Заявка на покупку
@@ -213,20 +184,22 @@ class Quik(Broker):
                 self,  # Брокер
                 firm_stop_order['order_num'],  # Уникальный код заявки
                 buy,  # Покупка/продажа
-                Order.Stop if order_price else Order.Limit,  # Лимит/по рынку
+                Order.StopLimit if order_price else Order.Stop,  # Стоп лимит/стоп
                 symbol.dataname,  # Название тикера
                 symbol.decimals,  # Кол-во десятичных знаков в цене
                 firm_stop_order['qty'] * symbol.lot_size,  # Кол-во в штуках
                 order_price,  # Цена
-                condition_price))  # Цена срабатывания
+                condition_price,  # Цена срабатывания стоп заявки
+                Order.Accepted))  # Статус
         return self.orders
 
     def new_order(self, order):
         class_code, sec_code = self.provider.dataname_to_class_sec_codes(order.dataname)  # Код режима торгов и тикер из названия тикера
         action = 'NEW_STOP_ORDER' if order.exec_type in (Order.Stop, Order.StopLimit) else 'NEW_ORDER'  # Действие над заявкой
         quantity = self.provider.size_to_lots(class_code, sec_code, order.quantity)  # Кол-во в лотах
+        trans_id = str(next(self.trans_id))  # Следующий номер транзакции
         transaction = {  # Все значения должны передаваться в виде строк
-            'TRANS_ID': str(next(self.trans_id)),  # Следующий номер транзакции
+            'TRANS_ID': trans_id,  # Номер транзакции
             'CLIENT_CODE': self.account['client_code'],  # Код клиента
             'ACCOUNT': self.account['trade_account_id'],  # Счет
             'ACTION': action,  # Тип заявки: Новая лимитная/рыночная заявка
@@ -244,6 +217,10 @@ class Quik(Broker):
         else:  # Для рыночной заявки
             transaction['TYPE'] = 'M'  # M = рыночная заявка
         self.provider.send_transaction(transaction)
+        order.id = trans_id  # Пока у заявки нет номера, ставим номер транзакции. Номер заявки придет в _on_trans_reply
+        order.status = Order.Submitted  # Заявка отправлена брокеру
+        self.orders.append(order)  # Добавляем новую заявку в список заявок
+        return True  # Операция завершилась успешно
 
     def cancel_order(self, order):
         class_code, sec_code = self.provider.dataname_to_class_sec_codes(order.dataname)  # Код режима торгов и тикер из названия тикера
@@ -257,5 +234,168 @@ class Quik(Broker):
             order_key: order.id}  # Номер заявки
         self.provider.send_transaction(transaction)
 
+    def subscribe_transactions(self):
+        pass  # Подписки на позиции, сделки, заявки автоматически запускаются в QuikPy
+
+    def unsubscribe_transactions(self):
+        pass  # Подписки на позиции, сделки, заявки автоматически закроются при закрытии соединения в функции close
+
     def close(self):
+        self.provider.on_new_candle.unsubscribe(self._on_new_bar)  # Обработка нового бара
+        self.provider.on_trans_reply.unsubscribe(self._on_trans_reply)  # Обработка транзакций
+        self.provider.on_order.unsubscribe(self._on_order)  # Обработка заявок
+        self.provider.on_stop_order.unsubscribe(self._on_stop_order)  # Обработка стоп заявок
+        self.provider.on_trade.unsubscribe(self._on_trade)  # Обработка сделок
+
         self.provider.close_connection_and_thread()  # Перед выходом закрываем соединение для запросов и поток обработки функций обратного вызова
+
+    # Внутренние функции
+
+    def _get_symbol_info(self, class_code: str, sec_code: str) -> Symbol | None:
+        """Спецификация тикера по режиму торгов и коду"""
+        si = self.provider.get_symbol_info(class_code, sec_code)  # Спецификация тикера
+        if si is None:  # Если тикер не найден
+            return None  # то выходим, дальше не продолжаем
+        dataname = self.provider.class_sec_codes_to_dataname(class_code, sec_code)  # Название тикера
+        symbol = Symbol(class_code, sec_code, dataname, si['short_name'], si['scale'], si['min_price_step'], si['lot_size'])
+        self.storage.set_symbol(symbol)  # Добавляем спецификацию тикера в хранилище
+        return symbol
+
+    def _on_new_bar(self, data):
+        """Получение нового бара по подписке"""
+        bar = data['data']  # Данные бара
+        class_code = bar['class']  # Код режима торгов
+        sec_code = bar['sec']  # Тикер
+        dataname = self.provider.class_sec_codes_to_dataname(class_code, sec_code)  # Название тикера
+        time_frame, _ = self.provider.quik_timeframe_to_timeframe(bar['interval'])  # Временной интервал
+        dt_json = bar['datetime']  # Получаем составное значение даты и времени открытия бара
+        dt = datetime(dt_json['year'], dt_json['month'], dt_json['day'], dt_json['hour'], dt_json['min'])  # Время открытия бара
+        self.on_new_bar.trigger(Bar(class_code, sec_code, dataname, time_frame, dt, bar['open'], bar['high'], bar['low'], bar['close'], int(bar['volume'])))  # Вызываем событие добавления нового бара
+
+    def _on_trans_reply(self, data):
+        """Получение ответа на транзакцию пользователя"""
+        trans_reply = data['data']  # Ответ на транзакцию
+        trans_id = int(trans_reply['trans_id'])  # Номер транзакции заявки
+        if trans_id == 0:  # Заявки, выставленные не из автоторговли / только что (с нулевыми номерами транзакции)
+            return  # не обрабатываем, пропускаем
+        order_num = int(trans_reply['order_num'])  # Номер заявки на бирже
+        order = next((order for order in self.orders if order.id == trans_id), None)  # Ищем заявку по номеру транзакции
+        if order is None:  # Если заявка не найдена
+            return  # то выходим, дальше не продолжаем
+        order.id = order_num  # Ставим номер заявки
+        # TODO Есть поле flags, но оно не документировано. Лучше вместо текстового результата транзакции разбирать по нему
+        result_msg = str(trans_reply['result_msg']).lower()  # По результату исполнения транзакции (очень плохое решение)
+        status = int(trans_reply['status'])  # Статус транзакции
+        if status == 15 or 'зарегистрирован' in result_msg:  # Если пришел ответ по новой заявке
+            order.status = Order.Accepted  # Заявка принята брокером
+        elif 'снят' in result_msg:  # Если пришел ответ по отмене существующей заявки
+            order.status = Order.Canceled  # Заявка отменена
+        elif status in (2, 4, 5, 10, 11, 12, 13, 14, 16):  # Транзакция не выполнена (ошибка заявки):
+            # - Не найдена заявка для удаления
+            # - Вы не можете снять данную заявку
+            # - Превышен лимит отправки транзакций для данного логина
+            if status == 4 and 'не найдена заявка' in result_msg or \
+               status == 5 and 'не можете снять' in result_msg or 'превышен лимит' in result_msg:
+                return  # то заявку не отменяем, выходим, дальше не продолжаем
+            order.status = Order.Rejected  # Заявка отклонена брокером
+        elif status == 6:  # Транзакция не прошла проверку лимитов сервера QUIK
+            order.status = Order.Margin  # Недостаточно средств
+        self.on_order.trigger(order)
+
+    def _on_order(self, data):
+        """Получение заявки по подписке"""
+        order = data['data']  # Заявка
+        buy = order['flags'] & 0b100 != 0b100  # Заявка на покупку
+        class_code = order['class_code']  # Код режима торгов
+        sec_code = order['sec_code']  # Тикер
+        symbol = self._get_symbol_info(class_code, sec_code)  # Спецификация тикера
+        quantity = self.provider.lots_to_size(class_code, sec_code, order['qty'])  # Кол-во в штуках
+        order_price = self.provider.quik_price_to_price(class_code, sec_code, order['price'])  # Цена заявки в рублях за штуку
+        status = self._ext_order_status_to_status(int(order['ext_order_status']))  # Статус заявки по расширенному статусу заявки
+        self.on_order.trigger(Order(
+            self,  # Брокер
+            order['order_num'],  # Уникальный код заявки
+            buy,  # Покупка/продажа
+            Order.Limit if order_price else Order.Market,  # Лимит/по рынку. Для фьючерсов задается текущая рыночная цена. Все заявки по ним будут лимитные
+            symbol.dataname,  # Название тикера
+            symbol.decimals,  # Кол-во десятичных знаков в цене
+            quantity,  # Кол-во в штуках
+            order_price,  # Цена
+            status=status))  # Статус)
+
+    def _on_stop_order(self, data):
+        """Получение стоп заявки по подписке"""
+        stop_order = data['data']  # Стоп заявка
+        buy = stop_order['flags'] & 0b100 != 0b100  # Заявка на покупку
+        class_code = stop_order['class_code']  # Код режима торгов
+        sec_code = stop_order['sec_code']  # Тикер
+        symbol = self._get_symbol_info(class_code, sec_code)  # Спецификация тикера
+        quantity = self.provider.lots_to_size(class_code, sec_code, stop_order['qty'])  # Кол-во в штуках
+        condition_price = self.provider.quik_price_to_price(class_code, sec_code, stop_order['condition_price'])  # Цена срабатывания стоп заявки в рублях за штуку
+        order_price = self.provider.quik_price_to_price(class_code, sec_code, stop_order['price'])  # Цена заявки в рублях за штуку
+        status = Order.Accepted if int(stop_order['filled_qty']) == 0 else Order.Completed  # Статус
+        self.on_order.trigger(Order(
+            self,  # Брокер
+            stop_order['order_num'],  # Уникальный код заявки
+            buy,  # Покупка/продажа
+            Order.StopLimit if order_price else Order.Stop,  # Стоп лимит/стоп
+            symbol.dataname,  # Название тикера
+            symbol.decimals,  # Кол-во десятичных знаков в цене
+            quantity,  # Кол-во в штуках
+            order_price,  # Цена
+            condition_price,  # Цена срабатывания стоп заявки
+            status))  # Статус
+
+    def _on_trade(self, data):
+        """Получение сделки по подписке"""
+        trade = data['data']  # Сделка
+        trans_id = int(trade['trans_id'])  # Номер транзакции из заявки на бирже. Не используем GetOrderByNumber, т.к. он может вернуть 0
+        if trans_id == 0:  # Заявки, выставленные не из автоторговли / только что (с нулевыми номерами транзакции)
+            return  # не обрабатываем, пропускаем
+        trade_num = int(trade['trade_num'])  # Номер сделки (дублируется 3 раза)
+        class_code = trade['class_code']  # Код режима торгов
+        sec_code = trade['sec_code']  # Код тикера
+        symbol = self._get_symbol_info(class_code, sec_code)  # Спецификация тикера
+        if symbol.dataname not in self.trade_nums.keys():  # Если это первая сделка по тикеру
+            self.trade_nums[symbol.dataname] = []  # то ставим пустой список сделок
+        elif trade_num in self.trade_nums[symbol.dataname]:  # Если номер сделки есть в списке (фильтр для дублей)
+            return  # то выходим, дальше не продолжаем
+        self.trade_nums[symbol.dataname].append(trade_num)  # Запоминаем номер сделки по тикеру, чтобы в будущем ее не обрабатывать (фильтр для дублей)
+        order_num = trade['order_num']  # Номер заявки на бирже
+        order = next((order for order in self.orders if order.id == order_num), None)  # Ищем заявку по номеру
+        if order is None:  # Если заявка не найдена
+            return  # то выходим, дальше не продолжаем
+        dt = trade['datetime']
+        dt_msk = datetime(int(dt['year']), int(dt['month']), int(dt['day']), int(dt['hour']), int(dt['min']), int(dt['sec']))
+        quantity = int(trade['qty'])  # Абсолютное кол-во
+        if self.lots:  # Если входящий остаток в лотах
+            quantity = self.provider.lots_to_size(class_code, sec_code, quantity)  # то переводим кол-во из лотов в штуки
+        if trade['flags'] & 0b100 == 0b100:  # Если сделка на продажу (бит 2)
+            quantity *= -1  # то кол-во ставим отрицательным
+        self.on_trade.trigger(Trade(
+            self,  # Брокер
+            order_num,  # Номер заявки из сделки
+            symbol.dataname,  # Название тикера
+            symbol.description,  # Описание тикера
+            symbol.decimals,  # Кол-во десятичных знаков в цене
+            dt_msk,  # Дата и время сделки по времени биржи (МСК)
+            quantity,  # Кол-во в штуках
+            self.provider.quik_price_to_price(class_code, sec_code, float(trade['price']))))  # Цена сделки
+        self.on_position.trigger(self.get_position(symbol))  # При любой сделке позиция изменяется. Отправим текущую или пустую позицию по тикеру по подписке
+
+    @staticmethod
+    def _ext_order_status_to_status(ext_order_status: int):
+        if ext_order_status in (1, 8):  # заявка активна / приостановлено исполнение
+            return Order.Accepted
+        elif ext_order_status == 2:  # заявка частично исполнена
+            return Order.Partial
+        elif ext_order_status == 3:  # заявка исполнена
+            return Order.Completed
+        elif ext_order_status in (4, 5, 6, 11):  # заявка отменена / заменена / в состоянии отмены / в состоянии замены
+            return Order.Canceled
+        elif ext_order_status == 7:  # заявка отвергнута
+            return Order.Rejected
+        elif ext_order_status == 9:  # заявка в состоянии регистрации
+            return Order.Submitted
+        else:  # 10 – заявка снята по времени действия
+            return Order.Expired

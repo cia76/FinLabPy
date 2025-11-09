@@ -25,9 +25,9 @@ class Tinvest(Broker):
         self.account_id = self.provider.accounts[account_id].id  # Номер счета по порядковому номеру
         self.history_thread = None  # Поток подписок на историю тикера
 
-        self.provider.on_candle = self._on_new_bar  # Обработка нового бара
-        self.provider.on_order_state = self._on_order  # Обработка заявок
-        self.provider.on_order_trades = self._on_trade  # Обработка сделок
+        self.provider.on_candle.subscribe(self._on_new_bar)  # Обработка нового бара
+        self.provider.on_order_state.subscribe(self._on_order)  # Обработка заявок
+        self.provider.on_order_trades.subscribe(self._on_trade)  # Обработка сделок
 
     def get_symbol_by_dataname(self, dataname):
         symbol = self.storage.get_symbol(dataname)  # Проверяем, есть ли спецификация тикера в хранилище
@@ -233,9 +233,9 @@ class Tinvest(Broker):
         pass  # Подписки на позиции, сделки, заявки автоматически закроются при закрытии канала в функции close
 
     def close(self):
-        self.provider.on_candle = self.provider.default_handler  # Обработка нового бара
-        self.provider.on_order_state = self.provider.default_handler  # Обработка заявок
-        self.provider.on_order_trades = self.provider.default_handler  # Обработка сделок
+        self.provider.on_candle.unsubscribe(self._on_new_bar)  # Обработка нового бара
+        self.provider.on_order_state.unsubscribe(self._on_order)  # Обработка заявок
+        self.provider.on_order_trades.unsubscribe(self._on_trade)  # Обработка сделок
 
         self.provider.close_channel()  # Закрываем канал перед выходом
 
@@ -277,12 +277,12 @@ class Tinvest(Broker):
         low = self.provider.quotation_to_float(candle.low)
         close = self.provider.quotation_to_float(candle.close)
         volume = int(candle.volume) * symbol.lot_size  # Объем в шутках
-        self.on_new_bar(Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame, dt_msk, open_, high, low, close, volume))  # Вызываем событие добавления нового бара
+        self.on_new_bar.trigger(Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame, dt_msk, open_, high, low, close, volume))  # Вызываем событие добавления нового бара
 
     def _on_trade(self, order_trades: OrderTrades):
         symbol = self._get_symbol_info(figi=order_trades.figi)  # Спецификация тикера
         for trade in order_trades.trades:
-            self.on_trade(Trade(
+            self.on_trade.trigger(Trade(
                 self,  # Брокер
                 order_trades.order_id,  # Номер заявки из сделки
                 symbol.dataname,  # Название тикера
@@ -291,7 +291,7 @@ class Tinvest(Broker):
                 self.provider.timestamp_to_msk_datetime(trade.date_time),  # Дата и время сделки по времени биржи (МСК)
                 trade.quantity,  # Кол-во в штуках
                 self.provider.quotation_to_float(trade.price)))  # Цена сделки
-        self.on_position(self.get_position(symbol))  # При любой сделке позиция изменяется. Отправим текущую или пустую позицию по тикеру по подписке
+        self.on_position.trigger(self.get_position(symbol))  # При любой сделке позиция изменяется. Отправим текущую или пустую позицию по тикеру по подписке
 
     def _on_order(self, order_state: OrderState):
         if order_state.order_type == OrderType.ORDER_TYPE_MARKET:  # Рыночная заявка
@@ -322,8 +322,8 @@ class Tinvest(Broker):
                     stop_order.status = Order.Completed  # то считаем, что стоп или стоп лимитная заявка исполнена
                 else:  # Если направления заявок не совпадают
                     stop_order.status = Order.Canceled  # то считаем, что стоп или стоп лимитная заявка отменена
-                self.on_order(stop_order)
-        self.on_order(Order(
+                self.on_order.trigger(stop_order)
+        self.on_order.trigger(Order(
             self,  # Брокер
             order_state.order_id,  # Уникальный код заявки
             order_state.direction == OrderDirection.ORDER_DIRECTION_BUY,  # Покупка/продажа

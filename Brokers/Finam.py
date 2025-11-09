@@ -9,10 +9,9 @@ from FinLabPy.Core import Broker, Bar, Position, Trade, Order, Symbol  # Бро�
 from FinamPy import FinamPy  # Работа с Finam Trade API gRPC https://tradeapi.finam.ru из Python
 from FinamPy.grpc.marketdata.marketdata_service_pb2 import BarsRequest, BarsResponse, QuoteRequest, QuoteResponse, SubscribeBarsResponse, TimeFrame  # История
 from FinamPy.grpc.accounts.accounts_service_pb2 import GetAccountRequest, GetAccountResponse  # Счет
-from FinamPy.grpc.orders.orders_service_pb2 import OrdersRequest, OrdersResponse, \
-    ORDER_STATUS_NEW, ORDER_STATUS_PARTIALLY_FILLED, ORDER_TYPE_MARKET, ORDER_TYPE_LIMIT, ORDER_TYPE_STOP, ORDER_TYPE_STOP_LIMIT, \
-    Order as FinamOrder, StopCondition, CancelOrderRequest, OrderState, OrderStatus, OrderTradeRequest, OrderType  # Заявки
-from FinamPy.grpc.side_pb2 import SIDE_BUY, SIDE_SELL  # Покупка/продажа
+from FinamPy.grpc.orders.orders_service_pb2 import OrdersRequest, OrdersResponse, OrderType, OrderState, OrderStatus, \
+    Order as FinamOrder, StopCondition, CancelOrderRequest, OrderTradeRequest  # Заявки
+from FinamPy.grpc.side_pb2 import Side  # Покупка/продажа
 from FinamPy.grpc.trade_pb2 import AccountTrade  # Сделка
 
 
@@ -23,11 +22,10 @@ class Finam(Broker):
         self.provider = provider  # Уже инициирован в базовом классе. Выполням для того, чтобы работать с типом провайдера
         self.account_id = self.provider.account_ids[account_id]  # Номер счета по порядковому номеру
         self.last_bars = {}  # Последний бар. Он может быть не завершен
-        self.unsubscribed = []  # Список отмененных подписок
 
-        self.provider.on_trade = self._on_trade  # Обработка сделок
-        self.provider.on_order = self._on_order  # Обработка заявок
-        self.provider.on_new_bar = self._on_new_bar  # Обработка нового бара
+        self.provider.on_new_bar.subscribe(self._on_new_bar)  # Обработка нового бара
+        self.provider.on_order.subscribe(self._on_order)  # Обработка заявок
+        self.provider.on_trade.subscribe(self._on_trade)  # Обработка сделок
 
     def get_symbol_by_dataname(self, dataname):
         symbol = self.storage.get_symbol(dataname)  # Проверяем, есть ли спецификация тикера в хранилище
@@ -56,12 +54,12 @@ class Finam(Broker):
             if len(bars_response.bars) > 0:  # Если за период получены бары
                 if len(bars) > 0:  # Если список бар не пустой
                     del bars[-1]  # то удаляем последний бар. Он перепишется первым полученным баром за период
-                for bar in bars_response.bars:
-                    dt_bar = self.provider.timestamp_to_msk_datetime(bar.timestamp.seconds)  # Дата/время полученного бара
+                for bar in bars_response.bars:  # Пробегаемся по всем пришедшим барам
+                    dt_msk = self.provider.timestamp_to_msk_datetime(bar.timestamp.seconds)  # Дата и время полученного бара
                     if not intraday:  # Для дневных временнЫх интервалов и выше
-                        dt_bar = dt_bar.replace(hour=0, minute=0)  # убираем время, оставляем только дату
+                        dt_msk = dt_msk.replace(hour=0, minute=0)  # убираем время, оставляем только дату
                     bars.append(Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame,
-                                    dt_bar, float(bar.open.value), float(bar.high.value), float(bar.low.value), float(bar.close.value), int(float(bar.volume.value))))  # Добавляем бар
+                                    dt_msk, float(bar.open.value), float(bar.high.value), float(bar.low.value), float(bar.close.value), int(float(bar.volume.value))))  # Добавляем бар
             seconds_from += int(tf_range.total_seconds())  # Дату и время начала запроса переносим на дату окончания
         if len(bars) == 0:  # Если новых бар нет
             return None  # то выходим, дальше не продолжаем
@@ -70,13 +68,16 @@ class Finam(Broker):
         return bars
 
     def subscribe_history(self, symbol, time_frame):
+        if (symbol, time_frame) in self.history_subscriptions.keys():  # Если подписка уже есть
+            return  # то выходим, дальше не продолжаем
         finam_board, ticker = self.provider.dataname_to_finam_board_ticker(symbol.dataname)  # Код режима торгов Финама и тикер
         mic = self.provider.get_mic(finam_board, ticker)  # Код биржи по ISO 10383
         finam_tf, _, _ = self.provider.timeframe_to_finam_timeframe(time_frame)  # Временной интервал Финама
         Thread(target=self.provider.subscribe_bars_thread, name=f'BarsThread {symbol.dataname} {time_frame}', args=(f'{ticker}@{mic}', finam_tf)).start()  # Создаем и запускаем поток подписки на новые бары
+        self.history_subscriptions[(symbol, time_frame)] = True  # Ставим отметку в справочнике подписок
 
     def unsubscribe_history(self, symbol, time_frame):
-        self.unsubscribed.append((symbol.dataname, time_frame))  # Реальной отмены подписки на историю тикера нет. Заносим подписку в список отмененных
+        self.history_subscriptions[(symbol, time_frame)] = False  # Реальной отмены подписки на историю тикера нет. Снимаем отметку в справочнике подписок
 
     def get_last_price(self, symbol):
         quote_response: QuoteResponse = self.provider.call_function(self.provider.marketdata_stub.LastQuote, QuoteRequest(symbol=f'{symbol.symbol}@{symbol.broker_info['mic']}'))  # Получение последней котировки по инструменту
@@ -110,44 +111,56 @@ class Finam(Broker):
         self.orders = []  # Сбрасываем активные заявки
         orders: OrdersResponse = self.provider.call_function(self.provider.orders_stub.GetOrders, OrdersRequest(account_id=self.account_id))  # Получаем заявки
         for order in orders.orders:  # Пробегаемся по всем заявкам
-            if order.status not in (ORDER_STATUS_NEW, ORDER_STATUS_PARTIALLY_FILLED):  # Если заявка еще не активная
+            if order.status not in (OrderStatus.ORDER_STATUS_NEW, OrderStatus.ORDER_STATUS_WAIT, OrderStatus.ORDER_STATUS_PARTIALLY_FILLED):  # Если заявка еще не активная
                 continue  # то переходим к следующей заявке, дальше не продолжаем
             symbol = self._get_symbol_info(order.order.symbol)  # Тикер
-            exec_type = Order.Limit if order.order.type == ORDER_TYPE_LIMIT else Order.Stop if order.order.type == ORDER_TYPE_STOP else Order.StopLimit if order.order.type == ORDER_TYPE_STOP_LIMIT else Order.Market  # Лимит/стоп/стоп-лимит/по рынку
-            price = float(order.order.limit_price.value) if order.order.type == ORDER_TYPE_LIMIT else float(order.order.stop_price) if order.order.type in (ORDER_TYPE_STOP, ORDER_TYPE_STOP_LIMIT) else 0  # Цена для лимитной и стоп заявок
+            exec_type = Order.Limit if order.order.type == OrderType.ORDER_TYPE_LIMIT else Order.Stop if order.order.type == OrderType.ORDER_TYPE_STOP else Order.StopLimit if order.order.type == OrderType.ORDER_TYPE_STOP_LIMIT else Order.Market  # Лимит/стоп/стоп-лимит/по рынку
+            price = 0  # Лимитная цена для лимитных и стоп лимитных заявок
+            stop_price = 0  # Стоп цена срабатывания для стоп и стоп лимитных заявок
+            if exec_type in (Order.Limit, Order.StopLimit):
+                price = float(order.order.limit_price.value)  # Лимитная цена
+            if exec_type in (Order.Stop, Order.StopLimit):
+                stop_price = float(order.order.stop_price.value)  # Цена срабатывания
             self.orders.append(Order(  # Добавляем заявки в список
                 self,  # Брокер
                 order.order_id,  # Уникальный код заявки
-                order.order.side.buy_sell == SIDE_BUY,  # Покупка/продажа
+                order.order.side.buy_sell == Side.SIDE_BUY,  # Покупка/продажа
                 exec_type,  # Тип
                 symbol.dataname,  # писание тикера
                 symbol.decimals,  # Кол-во десятичных знаков в цене
                 order.order.quantity,  # Кол-во в штуках
-                price))  # Цена
+                price,  # Цена
+                stop_price,  # Цена срабатывания стоп заявки
+                Order.Partial if order.status == OrderStatus.ORDER_STATUS_PARTIALLY_FILLED else Order.Accepted))  # Статус
         return self.orders
 
     def new_order(self, order):
         symbol = self.get_symbol_by_dataname(order.dataname)  # Получаем тикер по названию
         finam_symbol = f'{symbol.symbol}@{symbol.broker_info['mic']}'  # Тикер Финама
-        side = SIDE_BUY if order.buy else SIDE_SELL  # Заявка на покупку или продажу
+        side = Side.SIDE_BUY if order.buy else Side.SIDE_SELL  # Заявка на покупку или продажу
         limit_price = Decimal(value=str(round(order.price, symbol.decimals)))  # Лимитная цена
         stop_price = Decimal(value=str(round(order.stop_price, symbol.decimals)))  # Стоп цена
         stop_condition = StopCondition.STOP_CONDITION_LAST_UP if order.buy else StopCondition.STOP_CONDITION_LAST_DOWN  # Условие стоп цены
         client_order_id = str(int(datetime.now().timestamp()))  # Уникальный номер заявки
         if order.exec_type == Order.Limit:  # Лимит
-            finam_order = FinamOrder(account_id=self.account_id, symbol=finam_symbol, quantity=order.quantity, side=side, type=ORDER_TYPE_LIMIT, client_order_id=client_order_id,
+            finam_order = FinamOrder(account_id=self.account_id, symbol=finam_symbol, quantity=order.quantity, side=side, type=OrderType.ORDER_TYPE_LIMIT, client_order_id=client_order_id,
                                      limit_price=limit_price)
         elif order.exec_type == Order.Stop:  # Стоп
-            finam_order = FinamOrder(account_id=self.account_id, symbol=finam_symbol, quantity=order.quantity, side=side, type=ORDER_TYPE_STOP, client_order_id=client_order_id,
+            finam_order = FinamOrder(account_id=self.account_id, symbol=finam_symbol, quantity=order.quantity, side=side, type=OrderType.ORDER_TYPE_STOP, client_order_id=client_order_id,
                                      stop_price=stop_price, stop_condition=stop_condition)
         elif order.exec_type == Order.StopLimit:  # Стоп-лимит
-            finam_order = FinamOrder(account_id=self.account_id, symbol=finam_symbol, quantity=order.quantity, side=side, type=ORDER_TYPE_STOP_LIMIT, client_order_id=client_order_id,
+            finam_order = FinamOrder(account_id=self.account_id, symbol=finam_symbol, quantity=order.quantity, side=side, type=OrderType.ORDER_TYPE_STOP_LIMIT, client_order_id=client_order_id,
                                      stop_price=stop_price, stop_condition=stop_condition,
                                      limit_price=limit_price)
         else:  # По рынку
-            finam_order = FinamOrder(account_id=self.account_id, symbol=finam_symbol, quantity=order.quantity, side=side, type=ORDER_TYPE_MARKET, client_order_id=client_order_id)
+            finam_order = FinamOrder(account_id=self.account_id, symbol=finam_symbol, quantity=order.quantity, side=side, type=OrderType.ORDER_TYPE_MARKET, client_order_id=client_order_id)
         order_state: OrderState = self.provider.call_function(self.provider.orders_stub.PlaceOrder, finam_order)
-        return order_state.status == OrderStatus.ORDER_STATUS_NEW  # Должен вернуться статус "Новая заявка"
+        if order_state.status == OrderStatus.ORDER_STATUS_NEW:  # Должен вернуться статус "Новая заявка"
+            order.id = order_state.order_id  # Уникальный код заявки
+            order.status = Order.Submitted  # Заявка отправлена брокеру
+            self.orders.append(order)  # Добавляем новую заявку в список заявок
+            return True  # Операция завершилась успешно
+        return False  # Операция завершилась с ошибкой
 
     def cancel_order(self, order):
         self.provider.call_function(self.provider.orders_stub.CancelOrder, CancelOrderRequest(account_id=self.account_id, order_id=order.id))  # Удаление заявки
@@ -166,21 +179,23 @@ class Finam(Broker):
             account_id=self.account_id))  # по торговому счету
 
     def close(self):
-        self.provider.on_trade = self.provider.default_handler  # Обработка сделок
-        self.provider.on_order = self.provider.default_handler  # Обработка заявок
-        self.provider.on_new_bar = self.provider.default_bars_handler  # Обработка нового бара
+        self.provider.on_new_bar.unsubscribe(self._on_new_bar)  # Обработка нового бара
+        self.provider.on_order.unsubscribe(self._on_order)  # Обработка заявок
+        self.provider.on_trade.unsubscribe(self._on_trade)  # Обработка сделок
 
         self.provider.close_channel()  # Закрываем канал перед выходом
 
     # Внутренние функции
 
-    def _get_symbol_info(self, finam_symbol: str):
+    def _get_symbol_info(self, finam_symbol: str) -> Symbol | None:
         """Спецификация тикера по тикеру Финама"""
         ticker, mic = finam_symbol.split('@')  # По разделителю разбиваем на тикер и биржу
         symbol = next((symbol for symbol in self.storage.symbols.values() if symbol.symbol == ticker and symbol.broker_info['mic'] == mic), None)  # Проверяем, есть ли спецификация тикера в хранилище по тикеру и бирже
         if symbol is not None:  # Если есть тикер
             return symbol  # то возвращаем его, выходим, дальше не продолжаем
         si = self.provider.get_symbol_info(ticker, mic)  # Спецификация тикера
+        if si is None:  # Если тикер не найден
+            return None  # то выходим, дальше не продолжаем
         board = self.provider.finam_board_to_board(si.board)  # Канонический код режима торгов
         dataname = self.provider.finam_board_ticker_to_dataname(si.board, ticker)  # Название тикера
         broker_info = {'mic': mic}  # Информация брокера
@@ -192,24 +207,24 @@ class Finam(Broker):
         """Получение нового бара по подписке"""
         symbol = self._get_symbol_info(bars.symbol)  # Спецификация тикера
         time_frame, _, _ = self.provider.finam_timeframe_to_timeframe(timeframe)  # Временной интервал
-        if (symbol.dataname, time_frame) in self.unsubscribed:  # Если была отписка от тикера
+        if not self.history_subscriptions[(symbol, time_frame)]:  # Если была отписка от тикера
             return  # Выходим, дальше не продолжаем
         last_bar: Bar = None if (symbol.dataname, time_frame) not in self.last_bars else self.last_bars[(symbol.dataname, time_frame)]  # Последний бар. Он может быть не завершен
         for bar in bars.bars:  # Пробегаемся по всем полученным барам
-            dt_bar = self.provider.timestamp_to_msk_datetime(bar.timestamp.seconds)  # Дата/время полученного бара
-            if last_bar is not None and last_bar.datetime < dt_bar:  # Если время бара стало больше (предыдущий бар закрыт, новый бар открыт)
-                self.on_new_bar(Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame, last_bar.datetime, last_bar.open, last_bar.high, last_bar.low, last_bar.close, last_bar.volume))  # Вызываем событие добавления нового бара
+            dt_msk = self.provider.timestamp_to_msk_datetime(bar.timestamp.seconds)  # Дата и время полученного бара
+            if last_bar is not None and last_bar.datetime < dt_msk:  # Если время бара стало больше (предыдущий бар закрыт, новый бар открыт)
+                self.on_new_bar.trigger(Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame, last_bar.datetime, last_bar.open, last_bar.high, last_bar.low, last_bar.close, last_bar.volume))  # Вызываем событие добавления нового бара
             self.last_bars[(symbol.dataname, time_frame)] = Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame,
-                                                                dt_bar, float(bar.open.value), float(bar.high.value), float(bar.low.value), float(bar.close.value), int(float(bar.volume.value)))  # Запоминаем бар
+                                                                dt_msk, float(bar.open.value), float(bar.high.value), float(bar.low.value), float(bar.close.value), int(float(bar.volume.value)))  # Запоминаем бар
 
     def _on_trade(self, trade: AccountTrade):
         """Получение сделки по подписке. Изменение позиции"""
         symbol = self._get_symbol_info(trade.symbol)  # Спецификация тикера
-        dt_trade = self.provider.timestamp_to_msk_datetime(trade.timestamp.seconds)  # Дата/время исполнения сделки
+        dt_trade = self.provider.timestamp_to_msk_datetime(trade.timestamp.seconds)  # Дата и время исполнения сделки
         quantity = trade.size.value  # Кол-во в штуках. Всегда положительное
-        if trade.side.ValueType == SIDE_SELL:  # Если сделка на продажу
+        if trade.side.ValueType == Side.SIDE_SELL:  # Если сделка на продажу
             quantity *= -1  # то кол-во ставим отрицательным
-        self.on_trade(Trade(
+        self.on_trade.trigger(Trade(
             self,  # Брокер
             trade.order_id,  # Номер заявки из сделки
             symbol.dataname,  # Название тикера
@@ -218,18 +233,7 @@ class Finam(Broker):
             dt_trade,  # Дата и время сделки по времени биржи (МСК)
             quantity,  # Кол-во в штуках
             trade.price.value))  # Цена сделки
-        self.get_positions()  # Получаем все открытые позиции на текущий момент
-        position = next((position for position in self.positions if position.dataname == symbol.dataname), None)  # Из них пробуем получить позицию по тикеру
-        if position is None:  # Если позиции не существует
-            position = Position(
-                self,  # Брокер
-                symbol.dataname,  # Название тикера
-                symbol.description,  # Описание тикера
-                symbol.decimals,  # Кол-во десятичных знаков в цене
-                0,  # Кол-во в штуках (позиция закрыта)
-                0,  # Цена входа в рублях за штуку (не имеет смысла для закрытой позиции)
-                self.get_last_price(symbol))  # Последняя цена в рублях за штуку
-        self.on_position(position)
+        self.on_position.trigger(self.get_position(symbol))  # При любой сделке позиция изменяется. Отправим текущую или пустую позицию по тикеру по подписке
 
     def _on_order(self, order: OrderState):
         """Получение заявки по подписке"""
@@ -265,10 +269,10 @@ class Finam(Broker):
         else:  # Остальные статусы заявок
             raise NotImplementedError  # не реализованы
         symbol = self._get_symbol_info(order.order.symbol)  # Спецификация тикера
-        self.on_order(Order(
+        self.on_order.trigger(Order(
             self,  # Брокер
             order.order_id,  # Уникальный код заявки
-            order.order.side.ValueType == SIDE_BUY,  # Покупка/продажа
+            order.order.side.ValueType == Side.SIDE_BUY,  # Покупка/продажа
             order_type,  # Тип заявки
             symbol.dataname,  # Название тикера
             symbol.decimals,  # Кол-во десятичных знаков в цене

@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone, UTC
+from datetime import datetime, UTC
 
 from FinLabPy.Core import Broker, Bar, Position, Trade, Order, Symbol  # Брокер, бар, позиция, сделка, заявка, тикер
 from AlorPy import AlorPy  # Работа с Alor OpenAPI V2 из Python через REST/WebSockets
@@ -15,13 +15,12 @@ class Alor(Broker):
         account = self.provider.accounts[self.account_id]  # Номер счета по порядковому номеру
         self.portfolio = account['portfolio']  # Портфель
         self.exchange = exchange  # Биржа
-        self.history_subscription: dict[tuple[Symbol, str], str] = {}  # Список подписок на историю тикеров
 
-        self.provider.on_position = self._on_position  # Обработка позиций
-        self.provider.on_trade = self._on_trade  # Обработка сделок
-        self.provider.on_order = self._on_order  # Обработка заявок
-        self.provider.on_stop_order_v2 = self._on_stop_order_v2  # Обработка стоп заявок
-        self.provider.on_new_bar = self._on_new_bar  # Обработка нового бара
+        self.provider.on_new_bar.subscribe(self._on_new_bar)  # Подписка на новые бары
+        self.provider.on_order.subscribe(self._on_order)  # Подписка на заявки
+        self.provider.on_stop_order.subscribe(self._on_stop_order_v2)  # Подписка на стоп заявки
+        self.provider.on_trade.subscribe(self._on_trade)  # Подписка на сделки
+        self.provider.on_position.subscribe(self._on_position)  # Подписка на позиции
 
     def get_symbol_by_dataname(self, dataname):
         symbol = self.storage.get_symbol(dataname)  # Проверяем, есть ли спецификация тикера в хранилище
@@ -45,8 +44,8 @@ class Alor(Broker):
         history = self.provider.get_history(exchange, symbol.symbol, alor_tf, seconds_from, seconds_to)  # Запрос истории рынка
         if 'history' not in history:  # Если в полученной истории нет ключа history
             return None  # то выходим, дальше не продолжаем
-        for bar in history['history']:  # Пробегаемся по всем барам
-            dt_msk = self.provider.utc_timestamp_to_msk_datetime(bar['time']) if intraday else datetime.fromtimestamp(bar['time'], UTC).replace(tzinfo=None)  # Дневные бары и выше ставим на начало дня по UTC. Остальные - по МСК
+        for bar in history['history']:  # Пробегаемся по всем пришедшим барам
+            dt_msk = self.provider.timestamp_to_msk_datetime(bar['time']) if intraday else datetime.fromtimestamp(bar['time'], UTC).replace(tzinfo=None)  # Дневные бары и выше ставим на начало дня по UTC. Остальные - по МСК
             open_ = self.provider.alor_price_to_price(exchange, symbol.symbol, bar['open'])  # Конвертируем цены
             high = self.provider.alor_price_to_price(exchange, symbol.symbol, bar['high'])  # из цен Алор
             low = self.provider.alor_price_to_price(exchange, symbol.symbol, bar['low'])  # в зависимости от
@@ -57,16 +56,16 @@ class Alor(Broker):
         return bars
 
     def subscribe_history(self, symbol, time_frame):
-        if (symbol, time_frame) in self.history_subscription.keys():  # Если подписка уже есть
+        if (symbol, time_frame) in self.history_subscriptions.keys():  # Если подписка уже есть
             return  # то выходим, дальше не продолжаем
         exchange = symbol.broker_info['exchange']  # Биржа
         alor_tf, _ = self.provider.timeframe_to_alor_timeframe(time_frame)  # Временной интервал Алор
         seconds_from = int(datetime.now(UTC).timestamp())  # Изначально подписываемся с текущего момента времени по UTC
-        self.history_subscription[(symbol, time_frame)] = self.provider.bars_get_and_subscribe(exchange, symbol.symbol, alor_tf, seconds_from=seconds_from, frequency=1_000_000_000)  # Подписываемся на бары, добавляем в список подписок
+        self.history_subscriptions[(symbol, time_frame)] = self.provider.bars_get_and_subscribe(exchange, symbol.symbol, alor_tf, seconds_from=seconds_from, frequency=1_000_000_000)  # Подписываемся на бары, добавляем уникальный идентификатор подписки в справочник подписок
 
     def unsubscribe_history(self, symbol, time_frame):
-        self.provider.unsubscribe(self.history_subscription[(symbol, time_frame)])  # Отменяем подписку на бары
-        del self.history_subscription[(symbol, time_frame)]  # Удаляем из списка подписок
+        self.provider.unsubscribe(self.history_subscriptions[(symbol, time_frame)])  # Отменяем подписку на бары
+        del self.history_subscriptions[(symbol, time_frame)]  # Удаляем из справочника подписок
 
     def get_last_price(self, symbol):
         exchange = symbol.broker_info['exchange']  # Биржа
@@ -125,8 +124,7 @@ class Alor(Broker):
                 self.provider.lots_to_size(exchange, symbol.symbol, order['qty']),  # Кол-во в штуках
                 self.provider.alor_price_to_price(exchange, symbol.symbol, order['price']),  # Цена
                 0,  # Цена срабатывания стоп заявки
-                Order.Accepted if int(order['filledQtyBatch']) == 0 else Order.Partial  # Если нет исполненных лотов, то заявка принята, иначе частично исполнена
-            ))
+                Order.Accepted if int(order['filledQtyBatch']) == 0 else Order.Partial))  # Статус
         stop_orders = self.provider.get_stop_orders(self.portfolio, self.exchange)  # Получаем список активных стоп заявок
         for stop_order in stop_orders:  # Пробегаемся по всем активным стоп заявкам
             if stop_order['status'] != 'working':  # Если заявка исполнена/отменена/отклонена
@@ -144,8 +142,7 @@ class Alor(Broker):
                 self.provider.lots_to_size(exchange, symbol.symbol, stop_order['qty']),  # Кол-во в штуках
                 self.provider.alor_price_to_price(exchange, symbol.symbol, stop_order['price']),  # Цена
                 self.provider.alor_price_to_price(exchange, symbol.symbol, stop_order['stopPrice']),  # Цена срабатывания стоп заявки
-                Order.Accepted if int(stop_order['filledQtyBatch']) == 0 else Order.Partial  # Если нет исполненных лотов, то заявка принята, иначе частично исполнена
-            ))
+                Order.Accepted))  # Статус
         return self.orders
 
     def new_order(self, order):
@@ -168,7 +165,9 @@ class Alor(Broker):
         if not response:  # Если при отправке заявки на биржу произошла веб ошибка
             return False  # Операция завершилась с ошибкой
         order.id = response['orderNumber']  # Сохраняем пришедший номер заявки на бирже
-        return True
+        order.status = Order.Submitted  # Заявка отправлена брокеру
+        self.orders.append(order)  # Добавляем новую заявку в список заявок
+        return True  # Операция завершилась успешно
 
     def cancel_order(self, order):
         symbol = self.get_symbol_by_dataname(order.dataname)  # Тикер
@@ -193,11 +192,11 @@ class Alor(Broker):
                 self.provider.unsubscribe(guid)  # то отменяем подписку
 
     def close(self):
-        self.provider.on_position = self.provider.default_handler  # Обработка позиций
-        self.provider.on_trade = self.provider.default_handler  # Обработка сделок
-        self.provider.on_order = self.provider.default_handler  # Обработка заявок
-        self.provider.on_stop_order_v2 = self.provider.default_handler  # Обработка стоп заявок
-        self.provider.on_new_bar = self.provider.default_handler  # Обработка нового бара
+        self.provider.on_new_bar.unsubscribe(self._on_new_bar)  # Отмена подписки на новые бары
+        self.provider.on_order.unsubscribe(self._on_order)  # Отмена подписки на заявки
+        self.provider.on_stop_order.unsubscribe(self._on_stop_order_v2)  # Отмена подписки на стоп заявки
+        self.provider.on_trade.unsubscribe(self._on_trade)  # Отмена подписки на сделки
+        self.provider.on_position.unsubscribe(self._on_position)  # Отмена подписки на позиции
 
         self.provider.close_web_socket()  # Перед выходом закрываем соединение с сервером WebSocket
 
@@ -228,13 +227,13 @@ class Alor(Broker):
         symbol = self._get_symbol_info(exchange, alor_symbol)  # Спецификация тикера
         alor_tf = subscription['tf']  # Временной интервал Алор
         time_frame, intraday = self.provider.alor_timeframe_to_timeframe(alor_tf)  # Временной интервал с признаком внутридневного интервала
-        dt_msk = self.provider.utc_timestamp_to_msk_datetime(utc_timestamp) if intraday else datetime.fromtimestamp(utc_timestamp)  # Дневные бары и выше ставим на начало дня по UTC. Остальные - по МСК
+        dt_msk = self.provider.timestamp_to_msk_datetime(utc_timestamp) if intraday else datetime.fromtimestamp(utc_timestamp)  # Дневные бары и выше ставим на начало дня по UTC. Остальные - по МСК
         open_ = self.provider.alor_price_to_price(exchange, symbol.symbol, response_data['open'])  # Конвертируем цены
         high = self.provider.alor_price_to_price(exchange, symbol.symbol, response_data['high'])  # из цен Алор
         low = self.provider.alor_price_to_price(exchange, symbol.symbol, response_data['low'])  # в зависимости от
         close = self.provider.alor_price_to_price(exchange, symbol.symbol, response_data['close'])  # режима торгов
         volume = self.provider.lots_to_size(exchange, symbol.symbol, int(response_data['volume']))  # Объем в штуках
-        self.on_new_bar(Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame, dt_msk, open_, high, low, close, volume))  # Вызываем событие добавления нового бара
+        self.on_new_bar.trigger(Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame, dt_msk, open_, high, low, close, volume))  # Вызываем событие добавления нового бара
 
     def _on_position(self, response):
         """Получение позиции по подписке"""
@@ -244,7 +243,7 @@ class Alor(Broker):
         exchange = position['exchange']  # Биржа
         alor_symbol = position['symbol']  # Тикер
         symbol = self._get_symbol_info(exchange, alor_symbol)  # Спецификация тикера
-        self.on_position(Position(
+        self.on_position.trigger(Position(
             self,  # Брокер
             symbol.dataname,  # Название тикера
             symbol.description,  # Описание тикера
@@ -262,12 +261,12 @@ class Alor(Broker):
         alor_symbol = trade['symbol']  # Тикер
         symbol = self._get_symbol_info(exchange, alor_symbol)  # Спецификация тикера
         str_utc = trade['date'][:19]  # Возвращается значение типа: '2023-02-16T09:25:01.4335364Z'. Берем первые 20 символов до точки перед наносекундами
-        dt_utc = datetime.strptime(str_utc, '%Y-%m-%dT%H:%M:%S')  # Переводим в дату/время UTC
+        dt_utc = datetime.strptime(str_utc, '%Y-%m-%dT%H:%M:%S')  # Переводим в дату и время UTC
         dt = self.provider.utc_to_msk_datetime(dt_utc)  # Дата и время сделки по времени биржи (МСК)
         quantity = self.provider.lots_to_size(exchange, symbol.symbol, trade['qty'])  # Кол-во в штуках. Всегда положительное
         if trade['side'] == 'sell':  # Если сделка на продажу
             quantity *= -1  # то кол-во ставим отрицательным
-        self.on_trade(Trade(
+        self.on_trade.trigger(Trade(
             self,  # Брокер
             trade['orderno'],  # Номер заявки из сделки
             symbol.dataname,  # Название тикера
@@ -291,7 +290,7 @@ class Alor(Broker):
             order_status = Order.Canceled
         else:  # Отклонена
             order_status = Order.Rejected
-        self.on_order(Order(
+        self.on_order.trigger(Order(
             self,  # Брокер
             order['id'],  # Уникальный код заявки
             order['side'] == 'buy',  # Покупка/продажа
@@ -317,7 +316,7 @@ class Alor(Broker):
             order_status = Order.Canceled
         else:  # Отклонена
             order_status = Order.Rejected
-        self.on_order(Order(
+        self.on_order.trigger(Order(
             self,  # Брокер
             stop_order['id'],  # Уникальный код заявки
             stop_order['side'] == 'buy',  # Покупка/продажа
