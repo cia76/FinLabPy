@@ -1,5 +1,7 @@
 # Курс Мультиброкер: Контроль https://finlab.vip/wpm-category/mbcontrol/
 
+from abc import ABC, abstractmethod  # Абстрактный класс и метод
+from typing import Any  # Любой тип
 from datetime import datetime  # Работа с датой и временем
 from math import copysign  # Знак числа
 
@@ -122,7 +124,7 @@ class Position:
 
 
 # noinspection PyShadowingBuiltins
-class Broker:
+class Broker(ABC):
     """Брокер"""
     def __init__(self, code: str, name: str, provider, account_id: int = 0, storage: str = 'file'):
         self.code = code  # Код брокера
@@ -236,7 +238,7 @@ class Broker:
         raise NotImplementedError
 
 
-class Storage:
+class Storage(ABC):
     """Хранилище бар и спецификации тикеров брокера"""
     def __init__(self, source: str):
         self.source = source  # Источник хранилища
@@ -244,41 +246,40 @@ class Storage:
 
     def get_symbol(self, dataname: str) -> Symbol | None:
         """Получение тикера"""
-        return self.symbols[dataname] if dataname in self.symbols else None  # Пробуем получить тикер по названию из словаря
+        return self.symbols.get(dataname)  # Пробуем получить тикер по названию из словаря
 
     def set_symbol(self, symbol: Symbol) -> None:
         """Сохранение тикера"""
         self.symbols[symbol.dataname] = symbol  # Добавляем/изменяем тикер в словаре
 
+    @abstractmethod
     def get_bars(self, symbol: Symbol, time_frame: str, dt_from: datetime = None, dt_to: datetime = None) -> list[Bar] | None:
         """Получение бар"""
         raise NotImplementedError
 
+    @abstractmethod
     def set_bars(self, bars: list[Bar]) -> None:
         """Сохранение бар"""
         raise NotImplementedError
 
 
-class Event(object):
-    """Обработка событий. По статье https://www.pythontutorials.net/blog/does-python-classes-support-events-like-other-languages/"""
+class Event:
+    """Событие с подпиской / отменой подписки"""
     def __init__(self):
-        self._callbacks = []  # Список функций обратного вызова - функции, которые будут вызываться на событие
+        self._callbacks: set[Any] = set()  # Избегаем дубликатов функций при помощи set
 
-    def subscribe(self, callback):
-        """Добавление функции обратного вызова (подписка)"""
-        if callback not in self._callbacks:  # Если этой фукнции еще нет
-            self._callbacks.append(callback)  # то добавляем ее в список функций обратного вызова
+    def subscribe(self, callback) -> None:
+        """Подписаться на событие"""
+        self._callbacks.add(callback)  # Добавляем функцию в список
 
-    def unsubscribe(self, callback):
-        """Удаление функции обратного вызова (отмена подписки)"""
-        if callback in self._callbacks:  # Если эта функция есть
-            self._callbacks.remove(callback)  # то удаляем ее из списка функций обратного вызова
+    def unsubscribe(self, callback) -> None:
+        """Отписаться от события"""
+        self._callbacks.discard(callback)  # Удаляем функцию из списка. Если функции нет в списке, то не будет ошибки
 
-    def trigger(self, *args, **kwargs):
-        """Запуск всех функций обратного вызова с аргументами"""
-        # Iterate over a copy of the list to allow unsubscribing during iteration
-        for callback in self._callbacks[:]:  # Пробегаемся по копии списка функций обратного вызова, чтобы разрешить удаление, пока функции выполняются
-            callback(*args, **kwargs)  # Выполняем функцию обратного вызова
+    def trigger(self, *args, **kwargs) -> None:
+        """Вызвать событие"""
+        for callback in list(self._callbacks):  # Пробегаемся по копии списка, чтобы избежать исключения при удалении
+            callback(*args, **kwargs)  # Вызываем функцию
 
 # Функции конвертации
 
