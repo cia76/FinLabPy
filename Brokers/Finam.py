@@ -58,8 +58,11 @@ class Finam(Broker):
                     dt_msk = self.provider.timestamp_to_msk_datetime(bar.timestamp.seconds)  # Дата и время полученного бара
                     if not intraday:  # Для дневных временнЫх интервалов и выше
                         dt_msk = dt_msk.replace(hour=0, minute=0)  # убираем время, оставляем только дату
-                    bars.append(Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame,
-                                    dt_msk, float(bar.open.value), float(bar.high.value), float(bar.low.value), float(bar.close.value), int(float(bar.volume.value))))  # Добавляем бар
+                    open_ = self.provider.finam_price_to_price(symbol.board, bar.open.value)  # Конвертируем цены
+                    high = self.provider.finam_price_to_price(symbol.board, float(bar.high.value))  # из цен Финама
+                    low = self.provider.finam_price_to_price(symbol.board, float(bar.low.value))  # в зависимости от
+                    close = self.provider.finam_price_to_price(symbol.board, float(bar.close.value))  # режима торгов
+                    bars.append(Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame, dt_msk, open_, high, low, close, int(float(bar.volume.value))))  # Добавляем бар
             seconds_from += int(tf_range.total_seconds())  # Дату и время начала запроса переносим на дату окончания
         if len(bars) == 0:  # Если новых бар нет
             return None  # то выходим, дальше не продолжаем
@@ -81,7 +84,7 @@ class Finam(Broker):
 
     def get_last_price(self, symbol):
         quote_response: QuoteResponse = self.provider.call_function(self.provider.marketdata_stub.LastQuote, QuoteRequest(symbol=f'{symbol.symbol}@{symbol.broker_info['mic']}'))  # Получение последней котировки по инструменту
-        return None if quote_response is None else float(quote_response.quote.last.value)  # Последняя цена сделки
+        return None if quote_response is None else self.provider.finam_price_to_price(symbol.board, float(quote_response.quote.last.value))  # Последняя цена сделки
 
     def get_value(self):
         account: GetAccountResponse = self.provider.call_function(self.provider.accounts_stub.GetAccount, GetAccountRequest(account_id=self.account_id))  # Получаем счет
@@ -103,8 +106,8 @@ class Finam(Broker):
                 symbol.description,  # Описание тикера
                 symbol.decimals,  # Кол-во десятичных знаков в цене
                 int(float(position.quantity.value)),  # Кол-во в штуках
-                float(position.average_price.value),  # Средняя цена входа в рублях
-                float(position.current_price.value)))  # Последняя цена в рублях
+                self.provider.finam_price_to_price(symbol.board, float(position.average_price.value)),  # Средняя цена входа в рублях
+                self.provider.finam_price_to_price(symbol.board, float(position.current_price.value))))  # Последняя цена в рублях
         return self.positions
 
     def get_orders(self):
@@ -118,9 +121,9 @@ class Finam(Broker):
             price = 0  # Лимитная цена для лимитных и стоп лимитных заявок
             stop_price = 0  # Стоп цена срабатывания для стоп и стоп лимитных заявок
             if exec_type in (Order.Limit, Order.StopLimit):
-                price = float(order.order.limit_price.value)  # Лимитная цена
+                price = self.provider.finam_price_to_price(symbol.board, float(order.order.limit_price.value))  # Лимитная цена
             if exec_type in (Order.Stop, Order.StopLimit):
-                stop_price = float(order.order.stop_price.value)  # Цена срабатывания
+                stop_price = self.provider.finam_price_to_price(symbol.board, float(order.order.stop_price.value))  # Цена срабатывания
             self.orders.append(Order(  # Добавляем заявки в список
                 self,  # Брокер
                 order.order_id,  # Уникальный код заявки
@@ -138,8 +141,8 @@ class Finam(Broker):
         symbol = self.get_symbol_by_dataname(order.dataname)  # Получаем тикер по названию
         finam_symbol = f'{symbol.symbol}@{symbol.broker_info['mic']}'  # Тикер Финама
         side = Side.SIDE_BUY if order.buy else Side.SIDE_SELL  # Заявка на покупку или продажу
-        limit_price = Decimal(value=str(round(order.price, symbol.decimals)))  # Лимитная цена
-        stop_price = Decimal(value=str(round(order.stop_price, symbol.decimals)))  # Стоп цена
+        limit_price = Decimal(value=str(round(self.provider.price_to_finam_price(symbol.board, order.price), symbol.decimals)))  # Лимитная цена Финама
+        stop_price = Decimal(value=str(round(self.provider.price_to_finam_price(symbol.board, order.stop_price), symbol.decimals)))  # Стоп цена Финама
         stop_condition = StopCondition.STOP_CONDITION_LAST_UP if order.buy else StopCondition.STOP_CONDITION_LAST_DOWN  # Условие стоп цены
         client_order_id = str(int(datetime.now().timestamp()))  # Уникальный номер заявки
         if order.exec_type == Order.Limit:  # Лимит
@@ -214,8 +217,11 @@ class Finam(Broker):
             dt_msk = self.provider.timestamp_to_msk_datetime(bar.timestamp.seconds)  # Дата и время полученного бара
             if last_bar is not None and last_bar.datetime < dt_msk:  # Если время бара стало больше (предыдущий бар закрыт, новый бар открыт)
                 self.on_new_bar.trigger(Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame, last_bar.datetime, last_bar.open, last_bar.high, last_bar.low, last_bar.close, last_bar.volume))  # Вызываем событие добавления нового бара
-            self.last_bars[(symbol.dataname, time_frame)] = Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame,
-                                                                dt_msk, float(bar.open.value), float(bar.high.value), float(bar.low.value), float(bar.close.value), int(float(bar.volume.value)))  # Запоминаем бар
+            open_ = self.provider.finam_price_to_price(symbol.board, bar.open.value)  # Конвертируем цены
+            high = self.provider.finam_price_to_price(symbol.board, float(bar.high.value))  # из цен Финама
+            low = self.provider.finam_price_to_price(symbol.board, float(bar.low.value))  # в зависимости от
+            close = self.provider.finam_price_to_price(symbol.board, float(bar.close.value))  # режима торгов
+            self.last_bars[(symbol.dataname, time_frame)] = Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame, dt_msk, open_, high, low, close, int(float(bar.volume.value)))  # Запоминаем бар
 
     def _on_trade(self, trade: AccountTrade):
         """Получение сделки по подписке. Изменение позиции"""
@@ -232,7 +238,7 @@ class Finam(Broker):
             symbol.decimals,  # Кол-во десятичных знаков в цене
             dt_trade,  # Дата и время сделки по времени биржи (МСК)
             quantity,  # Кол-во в штуках
-            trade.price.value))  # Цена сделки
+            self.provider.finam_price_to_price(symbol.board, trade.price.value)))  # Цена сделки
         self.on_position.trigger(self.get_position(symbol))  # При любой сделке позиция изменяется. Отправим текущую или пустую позицию по тикеру по подписке
 
     def _on_order(self, order: OrderState):
@@ -277,6 +283,6 @@ class Finam(Broker):
             symbol.dataname,  # Название тикера
             symbol.decimals,  # Кол-во десятичных знаков в цене
             order.order.quantity.value,  # Кол-во в штуках
-            order.order.limit_price.value if order.order.limit_price else 0,  # Цена
-            order.order.stop_price.value if order.order.stop_price else 0,  # Цена срабатывания стоп заявки
+            self.provider.finam_price_to_price(symbol.board, order.order.limit_price.value) if order.order.limit_price else 0,  # Цена
+            self.provider.finam_price_to_price(symbol.board, order.order.stop_price.value) if order.order.stop_price else 0,  # Цена срабатывания стоп заявки
             order_status))  # Статус заявки (без Submitted/Margin)
