@@ -58,7 +58,7 @@ class Finam(Broker):
                     dt_msk = self.provider.timestamp_to_msk_datetime(bar.timestamp.seconds)  # Дата и время полученного бара
                     if not intraday:  # Для дневных временнЫх интервалов и выше
                         dt_msk = dt_msk.replace(hour=0, minute=0)  # убираем время, оставляем только дату
-                    open_ = self.provider.finam_price_to_price(symbol.board, bar.open.value)  # Конвертируем цены
+                    open_ = self.provider.finam_price_to_price(symbol.board, float(bar.open.value))  # Конвертируем цены
                     high = self.provider.finam_price_to_price(symbol.board, float(bar.high.value))  # из цен Финама
                     low = self.provider.finam_price_to_price(symbol.board, float(bar.low.value))  # в зависимости от
                     close = self.provider.finam_price_to_price(symbol.board, float(bar.close.value))  # режима торгов
