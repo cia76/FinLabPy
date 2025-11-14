@@ -4,16 +4,16 @@ from math import log10  # Кол-во десятичных знаков буде
 from uuid import uuid4  # Номера заявок должны быть уникальными во времени и пространстве
 
 from FinLabPy.Core import Broker, Bar, Position, Trade, Order, Symbol  # Брокер, бар, позиция, сделка, заявка, тикер
-from TinvestPy import TinvestPy  # Работа с T-Invest API из Python
-from TinvestPy.grpc.instruments_pb2 import InstrumentRequest, InstrumentIdType, InstrumentResponse  # Тикер
-from TinvestPy.grpc.operations_pb2 import PortfolioRequest, PortfolioResponse  # Портфель
-from TinvestPy.grpc.marketdata_pb2 import (
+from TinvestPy.TinvestPy import TinvestPy  # Работа с T-Invest API из Python
+from TinvestPy.TinvestPy.grpc.instruments_pb2 import InstrumentRequest, InstrumentIdType, InstrumentResponse  # Тикер
+from TinvestPy.TinvestPy.grpc.operations_pb2 import PortfolioRequest, PortfolioResponse  # Портфель
+from TinvestPy.TinvestPy.grpc.marketdata_pb2 import (
     MarketDataRequest, SubscribeCandlesRequest, SubscriptionAction, CandleInstrument,  # Подписка на свечи
     GetCandlesRequest, GetCandlesResponse, Candle, GetLastPricesRequest, GetLastPricesResponse)  # Свечи, стакан
-from TinvestPy.grpc.orders_pb2 import (
+from TinvestPy.TinvestPy.grpc.orders_pb2 import (
     GetOrdersRequest, GetOrdersResponse, PostOrderRequest, PostOrderResponse, CancelOrderRequest,
     OrderExecutionReportStatus, OrderType, OrderTrades, OrderState, OrderDirection)  # Заявки
-from TinvestPy.grpc.stoporders_pb2 import (
+from TinvestPy.TinvestPy.grpc.stoporders_pb2 import (
     GetStopOrdersRequest, GetStopOrdersResponse, PostStopOrderRequest, PostStopOrderResponse, CancelStopOrderRequest, StopOrderExpirationType, StopOrderType, StopOrderDirection)  # Стоп заявки
 
 

@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, UTC
 
 from FinLabPy.Core import Broker, Bar, Position, Trade, Order, Symbol  # Брокер, бар, позиция, сделка, заявка, тикер
-from AlorPy import AlorPy  # Работа с Alor OpenAPI V2 из Python через REST/WebSockets
+from AlorPy.AlorPy import AlorPy  # Работа с Alor OpenAPI V2 из Python через REST/WebSockets
 
 
 class Alor(Broker):

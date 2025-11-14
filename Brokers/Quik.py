@@ -2,7 +2,7 @@ from datetime import datetime
 import itertools  # Итератор для уникальных номеров транзакций
 
 from FinLabPy.Core import Broker, Bar, Position, Trade, Order, Symbol  # Брокер, бар, позиция, сделка, заявка, тикер
-from QuikPy import QuikPy  # Работа с QUIK из Python через LUA скрипты QuikSharp
+from QuikPy.QuikPy import QuikPy  # Работа с QUIK из Python через LUA скрипты QuikSharp
 
 
 class Quik(Broker):

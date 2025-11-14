@@ -6,13 +6,13 @@ from google.type.interval_pb2 import Interval
 from google.type.decimal_pb2 import Decimal
 
 from FinLabPy.Core import Broker, Bar, Position, Trade, Order, Symbol  # Брокер, бар, позиция, сделка, заявка, тикер
-from FinamPy import FinamPy  # Работа с Finam Trade API gRPC https://tradeapi.finam.ru из Python
-from FinamPy.grpc.marketdata.marketdata_service_pb2 import BarsRequest, BarsResponse, QuoteRequest, QuoteResponse, SubscribeBarsResponse, TimeFrame  # История
-from FinamPy.grpc.accounts.accounts_service_pb2 import GetAccountRequest, GetAccountResponse  # Счет
-from FinamPy.grpc.orders.orders_service_pb2 import OrdersRequest, OrdersResponse, OrderType, OrderState, OrderStatus, \
+from FinamPy.FinamPy import FinamPy  # Работа с Finam Trade API gRPC https://tradeapi.finam.ru из Python
+from FinamPy.FinamPy.grpc.marketdata.marketdata_service_pb2 import BarsRequest, BarsResponse, QuoteRequest, QuoteResponse, SubscribeBarsResponse, TimeFrame  # История
+from FinamPy.FinamPy.grpc.accounts.accounts_service_pb2 import GetAccountRequest, GetAccountResponse  # Счет
+from FinamPy.FinamPy.grpc.orders.orders_service_pb2 import OrdersRequest, OrdersResponse, OrderType, OrderState, OrderStatus, \
     Order as FinamOrder, StopCondition, CancelOrderRequest, OrderTradeRequest  # Заявки
-from FinamPy.grpc.side_pb2 import Side  # Покупка/продажа
-from FinamPy.grpc.trade_pb2 import AccountTrade  # Сделка
+from FinamPy.FinamPy.grpc.side_pb2 import Side  # Покупка/продажа
+from FinamPy.FinamPy.grpc.trade_pb2 import AccountTrade  # Сделка
 
 
 class Finam(Broker):
