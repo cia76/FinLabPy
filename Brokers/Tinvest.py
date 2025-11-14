@@ -4,7 +4,7 @@ from math import log10  # Кол-во десятичных знаков буде
 from uuid import uuid4  # Номера заявок должны быть уникальными во времени и пространстве
 
 from FinLabPy.Core import Broker, Bar, Position, Trade, Order, Symbol  # Брокер, бар, позиция, сделка, заявка, тикер
-from TinvestPy.TinvestPy import TinvestPy  # Работа с T-Invest API из Python
+from TinvestPy import TinvestPy  # Работа с T-Invest API из Python
 from TinvestPy.grpc.instruments_pb2 import InstrumentRequest, InstrumentIdType, InstrumentResponse  # Тикер
 from TinvestPy.grpc.operations_pb2 import PortfolioRequest, PortfolioResponse  # Портфель
 from TinvestPy.grpc.marketdata_pb2 import (
