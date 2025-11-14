@@ -106,7 +106,7 @@ class Finam(Broker):
                 symbol.description,  # Описание тикера
                 symbol.decimals,  # Кол-во десятичных знаков в цене
                 int(float(position.quantity.value)),  # Кол-во в штуках
-                self.provider.finam_price_to_price(symbol.board, float(position.average_price.value)) if position.average_price.HasField('units') else 0,  # Средняя цена входа в рублях. Для фьючерсов не задается
+                self.provider.finam_price_to_price(symbol.board, float(position.average_price.value)) if position.average_price.value != '' else 0,  # Средняя цена входа в рублях. Для фьючерсов не задается
                 self.provider.finam_price_to_price(symbol.board, float(position.current_price.value))))  # Последняя цена в рублях
         return self.positions
 
