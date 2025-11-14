@@ -10,7 +10,7 @@ def exec_order(bars: list[Bar], order: Order, market_dt: datetime) -> None:
     if schedule.trade_session(market_dt) is None:  # Если биржа не работает
         print('Биржа не работает')
         return
-    order_open_dt = schedule.trade_bar_open_datetime(market_dt, market_tf)  # Дата и время открытия последнего бара
+    order_open_dt = schedule.trade_bar_open_datetime(market_dt, tf)  # Дата и время открытия последнего бара
     if order.exec_type == Order.Market:  # Рыночная заявка
         price = next(bar.open for bar in bars if bar.datetime == order_open_dt)  # Вход по цене открытия последнего бара, т.к. внутри бара цены неизвестны
         print(f'Рыночная заявка {"на покупку" if order.buy else "на продажу"} исполнена {order_open_dt} по цене {price}')
@@ -38,17 +38,18 @@ def exec_order(bars: list[Bar], order: Order, market_dt: datetime) -> None:
 
 if __name__ == '__main__':  # Точка входа при запуске этого скрипта
     dataname = 'TQBR.SBER'
-    market_tf = 'M5'  # 5-и минутный временной интервал
-    # market_tf = 'M60'  # Часовой временной интервал
-    # market_tf = 'D1'  # Дневной временной интервал
+    tf = 'M5'  # 5-и минутный временной интервал
+    # tf = 'M60'  # Часовой временной интервал
+    # tf = 'D1'  # Дневной временной интервал
 
     broker = default_broker  # Брокер по умолчанию
     # broker = brokers['Ф']  # Брокер по ключу из Config.py словаря brokers
     schedule = Stocks()  # Расписание фондового рынка Московской Биржи
     # schedule.delta = timedelta(seconds=5)  # Для Т-Инвестиций 3 секунды задержки недостаточно для получения нового бара. Увеличиваем задержку
-    bars = broker.get_history(dataname, market_tf, datetime(2025, 3, 1))  # Получаем ответ на запрос истории рынка
+    symbol = broker.get_symbol_by_dataname(dataname)  # Получаем тикера по названию
+    bars = broker.get_history(symbol, tf, datetime(2025, 3, 1))  # Получаем ответ на запрос истории рынка
 
-    print(f'Временной интервал     : {market_tf}')
+    print(f'Временной интервал     : {tf}')
     print(f'Рассинхронизация часов : {schedule.delta.seconds} с')
 
     market_order = Order(broker, '1', True, Order.Market, dataname, 2, 10, 0, 0)  # Рыночная заявка
