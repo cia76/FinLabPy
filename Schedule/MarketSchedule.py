@@ -1,7 +1,6 @@
 from typing import Tuple, Union  # Кортеж, объединение типов
 from datetime import datetime, timedelta, time, UTC
-
-from pytz import timezone, utc  # Работаем с временнОй зоной и UTC
+from zoneinfo import ZoneInfo  # ВременнАя зона
 
 
 class Session:
@@ -17,7 +16,7 @@ class Session:
 
 class Schedule:
     """Расписание торгов биржи"""
-    market_timezone = timezone('Europe/Moscow')  # ВременнАя зона работы биржи
+    market_timezone = ZoneInfo('Europe/Moscow')  # ВременнАя зона работы биржи
     dt_format = '%d.%m.%Y %H:%M:%S'  # Российский формат отображения даты и времени
 
     def __init__(self, trade_sessions, delta=timedelta(seconds=3)):
@@ -166,16 +165,25 @@ class Schedule:
         """Текущее время на бирже по часам локального компьютера"""
         return self.utc_to_msk_datetime(datetime.now(UTC)).replace(microsecond=0)  # Текущее время МСК с точностью до секунды (без микросекунд)
 
-    def utc_to_msk_datetime(self, dt, tzinfo=False) -> datetime:
-        """Перевод времени из UTC в московское
+    def msk_datetime_to_timestamp(self, dt) -> int:
+        """Перевод московского времени в кол-во секунд, прошедших с 01.01.1970 00:00 UTC
 
-        :param datetime dt: Время UTC
-        :param bool tzinfo: Отображать временнУю зону
-        :return: Московское время
+        :param datetime dt: Московское время
+        :return: Кол-во секунд, прошедших с 01.01.1970 00:00 UTC
+        :rtype: int
         """
-        dt_utc = utc.localize(dt) if dt.tzinfo is None else dt  # Задаем временнУю зону UTC если не задана
-        dt_msk = dt_utc.astimezone(self.market_timezone)  # Переводим в МСК
-        return dt_msk if tzinfo else dt_msk.replace(tzinfo=None)
+        dt_msk = dt.replace(tzinfo=self.tz_msk)  # Заданное время ставим в зону МСК
+        return int(dt_msk.timestamp())  # Переводим в кол-во секунд, прошедших с 01.01.1970 в UTC
+
+    def timestamp_to_msk_datetime(self, seconds) -> datetime:
+        """Перевод кол-ва секунд, прошедших с 01.01.1970 00:00 UTC, в московское время
+
+        :param int seconds: Кол-во секунд, прошедших с 01.01.1970 00:00 UTC
+        :return: Московское время без временнОй зоны
+        :rtype: datetime
+        """
+        dt_utc = datetime.fromtimestamp(seconds, timezone.utc)  # Переводим кол-во секунд, прошедших с 01.01.1970 в UTC
+        return dt_utc.astimezone(self.tz_msk).replace(tzinfo=None)  # Заданное время ставим в зону МСК. Убираем временнУю зону
 
     def msk_to_utc_datetime(self, dt, tzinfo=False) -> datetime:
         """Перевод времени из московского в UTC
@@ -183,25 +191,20 @@ class Schedule:
         :param datetime dt: Московское время
         :param bool tzinfo: Отображать временнУю зону
         :return: Время UTC
+        :rtype: datetime
         """
-        dt_msk = self.market_timezone.localize(dt)  # Задаем временнУю зону МСК
-        dt_utc = dt_msk.astimezone(utc)  # Переводим в UTC
+        dt_msk = dt.replace(tzinfo=self.tz_msk)  # Заданное время ставим в зону МСК
+        dt_utc = dt_msk.astimezone(timezone.utc)  # Переводим в зону UTC
         return dt_utc if tzinfo else dt_utc.replace(tzinfo=None)
 
-    def utc_timestamp_to_msk_datetime(self, seconds) -> datetime:
-        """Перевод кол-ва секунд, прошедших с 01.01.1970 00:00 UTC в московское время
+    def utc_to_msk_datetime(self, dt, tzinfo=False) -> datetime:
+        """Перевод времени из UTC в московское
 
-        :param int seconds: Кол-во секунд, прошедших с 01.01.1970 00:00 UTC
-        :return: Московское время без временнОй зоны
+        :param datetime dt: Время UTC
+        :param bool tzinfo: Отображать временнУю зону
+        :return: Московское время
+        :rtype: datetime
         """
-        dt_utc = datetime.fromtimestamp(seconds, UTC)  # Переводим кол-во секунд, прошедших с 01.01.1970 в UTC
-        return self.utc_to_msk_datetime(dt_utc)  # Переводим время из UTC в московское
-
-    def msk_datetime_to_utc_timestamp(self, dt) -> int:
-        """Перевод московского времени в кол-во секунд, прошедших с 01.01.1970 00:00 UTC
-
-        :param datetime dt: Московское время
-        :return: Кол-во секунд, прошедших с 01.01.1970 00:00 UTC
-        """
-        dt_msk = self.market_timezone.localize(dt)  # Заданное время ставим в зону МСК
-        return int(dt_msk.timestamp())  # Переводим в кол-во секунд, прошедших с 01.01.1970 в UTC
+        dt_utc = dt.replace(tzinfo=timezone.utc)  # Заданное время ставим в зону UTC
+        dt_msk = dt_utc.astimezone(self.tz_msk)  # Переводим в зону МСК
+        return dt_msk if tzinfo else dt_msk.replace(tzinfo=None)
