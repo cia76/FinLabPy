@@ -58,7 +58,7 @@ class Tinvest(Broker):
                 if len(bars) > 0:  # Если список бар не пустой
                     del bars[-1]  # то удаляем последний бар. Он перепишется первым полученным баром за период
                 for candle in candles_response.candles:  # Пробегаемся по всем пришедшим барам
-                    dt_msk = self.provider.timestamp_to_msk_datetime(candle.time)  # Дата и время полученного бара
+                    dt_msk = self.provider.google_timestamp_to_msk_datetime(candle.time)  # Дата и время полученного бара
                     if not intraday:  # Для дневных временнЫх интервалов и выше
                         dt_msk = dt_msk.replace(hour=0, minute=0)  # убираем время, оставляем только дату
                     open_ = self.provider.tinvest_price_to_price(symbol.board, symbol.symbol, self.provider.quotation_to_float(candle.open))  # Конвертируем цены
@@ -271,7 +271,7 @@ class Tinvest(Broker):
         """Получение нового бара по подписке"""
         symbol = self._get_symbol_info(figi=candle.figi)  # Спецификация тикера по figi
         time_frame = self.provider.tinvest_subscription_timeframe_to_timeframe(candle.interval)  # Временной интервал
-        dt_msk = self.provider.timestamp_to_msk_datetime(candle.time)  # Дата и время полученного бара
+        dt_msk = self.provider.google_timestamp_to_msk_datetime(candle.time)  # Дата и время полученного бара
         open_ = self.provider.quotation_to_float(candle.open)
         high = self.provider.quotation_to_float(candle.high)
         low = self.provider.quotation_to_float(candle.low)
@@ -288,7 +288,7 @@ class Tinvest(Broker):
                 symbol.dataname,  # Название тикера
                 symbol.description,  # Описание тикера
                 symbol.decimals,  # Кол-во десятичных знаков в цене
-                self.provider.timestamp_to_msk_datetime(trade.date_time),  # Дата и время сделки по времени биржи (МСК)
+                self.provider.google_timestamp_to_msk_datetime(trade.date_time),  # Дата и время сделки по времени биржи (МСК)
                 trade.quantity,  # Кол-во в штуках
                 self.provider.quotation_to_float(trade.price)))  # Цена сделки
         self.on_position.trigger(self.get_position(symbol))  # При любой сделке позиция изменяется. Отправим текущую или пустую позицию по тикеру по подписке
