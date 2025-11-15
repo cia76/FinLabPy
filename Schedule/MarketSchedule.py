@@ -1,5 +1,5 @@
 from typing import Tuple, Union  # Кортеж, объединение типов
-from datetime import datetime, timedelta, time, UTC
+from datetime import datetime, timedelta, timezone, time
 from zoneinfo import ZoneInfo  # ВременнАя зона
 
 
