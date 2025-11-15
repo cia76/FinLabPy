@@ -163,7 +163,7 @@ class Schedule:
     @property
     def market_datetime_now(self) -> datetime:
         """Текущее время на бирже по часам локального компьютера"""
-        return self.utc_to_msk_datetime(datetime.now(UTC)).replace(microsecond=0)  # Текущее время МСК с точностью до секунды (без микросекунд)
+        return self.utc_to_msk_datetime(datetime.now(timezone.utc)).replace(microsecond=0)  # Текущее время МСК с точностью до секунды (без микросекунд)
 
     def msk_datetime_to_timestamp(self, dt) -> int:
         """Перевод московского времени в кол-во секунд, прошедших с 01.01.1970 00:00 UTC
@@ -172,7 +172,7 @@ class Schedule:
         :return: Кол-во секунд, прошедших с 01.01.1970 00:00 UTC
         :rtype: int
         """
-        dt_msk = dt.replace(tzinfo=self.tz_msk)  # Заданное время ставим в зону МСК
+        dt_msk = dt.replace(tzinfo=self.market_timezone)  # Заданное время ставим в зону МСК
         return int(dt_msk.timestamp())  # Переводим в кол-во секунд, прошедших с 01.01.1970 в UTC
 
     def timestamp_to_msk_datetime(self, seconds) -> datetime:
@@ -183,7 +183,7 @@ class Schedule:
         :rtype: datetime
         """
         dt_utc = datetime.fromtimestamp(seconds, timezone.utc)  # Переводим кол-во секунд, прошедших с 01.01.1970 в UTC
-        return dt_utc.astimezone(self.tz_msk).replace(tzinfo=None)  # Заданное время ставим в зону МСК. Убираем временнУю зону
+        return dt_utc.astimezone(self.market_timezone).replace(tzinfo=None)  # Заданное время ставим в зону МСК. Убираем временнУю зону
 
     def msk_to_utc_datetime(self, dt, tzinfo=False) -> datetime:
         """Перевод времени из московского в UTC
@@ -193,7 +193,7 @@ class Schedule:
         :return: Время UTC
         :rtype: datetime
         """
-        dt_msk = dt.replace(tzinfo=self.tz_msk)  # Заданное время ставим в зону МСК
+        dt_msk = dt.replace(tzinfo=self.market_timezone)  # Заданное время ставим в зону МСК
         dt_utc = dt_msk.astimezone(timezone.utc)  # Переводим в зону UTC
         return dt_utc if tzinfo else dt_utc.replace(tzinfo=None)
 
@@ -206,5 +206,5 @@ class Schedule:
         :rtype: datetime
         """
         dt_utc = dt.replace(tzinfo=timezone.utc)  # Заданное время ставим в зону UTC
-        dt_msk = dt_utc.astimezone(self.tz_msk)  # Переводим в зону МСК
+        dt_msk = dt_utc.astimezone(self.market_timezone)  # Переводим в зону МСК
         return dt_msk if tzinfo else dt_msk.replace(tzinfo=None)
