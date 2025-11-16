@@ -34,11 +34,11 @@ class Alor(Broker):
         bars = super().get_history(symbol, time_frame, dt_from, dt_to)  # Получаем бары из хранилища
         if bars is None:  # Если бары из хранилища не получены
             bars = []  # Пока список полученных бар пустой
-            seconds_from = 0 if dt_from is None else int(self.provider.tz_msk.localize(dt_from).timestamp())  # Первый возможный бар
+            seconds_from = 0 if dt_from is None else self.provider.msk_datetime_to_timestamp(dt_from)  # Первый возможный бар
         else:  # Если бары из хранилища получены
-            seconds_from = int(self.provider.tz_msk.localize(bars[-1].datetime).timestamp())  # Дата и время открытия последнего бара
+            seconds_from = self.provider.msk_datetime_to_timestamp(bars[-1].datetime)  # Дата и время открытия последнего бара
             del bars[-1]  # Удаляем последний бар. Он перепишется первым полученным баром за период
-        seconds_to = int(self.provider.tz_msk.localize(datetime.now() if dt_to is None else dt_to).timestamp())  # Последний возможный бар
+        seconds_to = self.provider.msk_datetime_to_timestamp(datetime.now() if dt_to is None else dt_to)  # Последний возможный бар
         alor_tf, intraday = self.provider.timeframe_to_alor_timeframe(time_frame)  # Временной интервал Алор с признаком внутридневного интервала
         exchange = symbol.broker_info['exchange']  # Биржа
         history = self.provider.get_history(exchange, symbol.symbol, alor_tf, seconds_from, seconds_to)  # Запрос истории рынка
