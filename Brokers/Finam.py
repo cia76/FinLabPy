@@ -217,7 +217,7 @@ class Finam(Broker):
             dt_msk = self.provider.timestamp_to_msk_datetime(bar.timestamp.seconds)  # Дата и время полученного бара
             if last_bar is not None and last_bar.datetime < dt_msk:  # Если время бара стало больше (предыдущий бар закрыт, новый бар открыт)
                 self.on_new_bar.trigger(Bar(symbol.board, symbol.symbol, symbol.dataname, time_frame, last_bar.datetime, last_bar.open, last_bar.high, last_bar.low, last_bar.close, last_bar.volume))  # Вызываем событие добавления нового бара
-            open_ = self.provider.finam_price_to_price(symbol.board, bar.open.value)  # Конвертируем цены
+            open_ = self.provider.finam_price_to_price(symbol.board, float(bar.open.value))  # Конвертируем цены
             high = self.provider.finam_price_to_price(symbol.board, float(bar.high.value))  # из цен Финама
             low = self.provider.finam_price_to_price(symbol.board, float(bar.low.value))  # в зависимости от
             close = self.provider.finam_price_to_price(symbol.board, float(bar.close.value))  # режима торгов
