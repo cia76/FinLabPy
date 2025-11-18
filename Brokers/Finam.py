@@ -127,7 +127,7 @@ class Finam(Broker):
             self.orders.append(Order(  # Добавляем заявки в список
                 self,  # Брокер
                 order.order_id,  # Уникальный код заявки
-                order.order.side.buy_sell == Side.SIDE_BUY,  # Покупка/продажа
+                order.order.side.ValueType == Side.SIDE_BUY,  # Покупка/продажа
                 exec_type,  # Тип
                 symbol.dataname,  # писание тикера
                 symbol.decimals,  # Кол-во десятичных знаков в цене
