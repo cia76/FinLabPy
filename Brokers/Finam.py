@@ -127,7 +127,7 @@ class Finam(Broker):
             self.orders.append(Order(  # Добавляем заявки в список
                 self,  # Брокер
                 order.order_id,  # Уникальный код заявки
-                order.order.side.ValueType == Side.SIDE_BUY,  # Покупка/продажа
+                order.order.side == Side.SIDE_BUY,  # Покупка/продажа
                 exec_type,  # Тип
                 symbol.dataname,  # писание тикера
                 symbol.decimals,  # Кол-во десятичных знаков в цене
@@ -228,7 +228,7 @@ class Finam(Broker):
         symbol = self._get_symbol_info(trade.symbol)  # Спецификация тикера
         dt_trade = self.provider.timestamp_to_msk_datetime(trade.timestamp.seconds)  # Дата и время исполнения сделки
         quantity = trade.size.value  # Кол-во в штуках. Всегда положительное
-        if trade.side.ValueType == Side.SIDE_SELL:  # Если сделка на продажу
+        if trade.side == Side.SIDE_SELL:  # Если сделка на продажу
             quantity *= -1  # то кол-во ставим отрицательным
         self.on_trade.trigger(Trade(
             self,  # Брокер
@@ -278,7 +278,7 @@ class Finam(Broker):
         self.on_order.trigger(Order(
             self,  # Брокер
             order.order_id,  # Уникальный код заявки
-            order.order.side.ValueType == Side.SIDE_BUY,  # Покупка/продажа
+            order.order.side == Side.SIDE_BUY,  # Покупка/продажа
             order_type,  # Тип заявки
             symbol.dataname,  # Название тикера
             symbol.decimals,  # Кол-во десятичных знаков в цене
