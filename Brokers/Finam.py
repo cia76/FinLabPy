@@ -210,7 +210,7 @@ class Finam(Broker):
         """Получение нового бара по подписке"""
         symbol = self._get_symbol_info(bars.symbol)  # Спецификация тикера
         time_frame, _, _ = self.provider.finam_timeframe_to_timeframe(timeframe)  # Временной интервал
-        if not self.history_subscriptions[(symbol, time_frame)]:  # Если была отписка от тикера
+        if (symbol, time_frame) not in self.history_subscriptions.keys():  # Если была отписка от тикера
             return  # Выходим, дальше не продолжаем
         last_bar: Bar = None if (symbol.dataname, time_frame) not in self.last_bars else self.last_bars[(symbol.dataname, time_frame)]  # Последний бар. Он может быть не завершен
         for bar in bars.bars:  # Пробегаемся по всем полученным барам

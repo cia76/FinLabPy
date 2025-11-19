@@ -149,7 +149,7 @@ class Broker(ABC):
         self.positions: list[Position] = []  # Текущие позиции
         self.orders: list[Order] = []  # Активные заявки
 
-        self.history_subscriptions: dict[tuple[Symbol, str], any] = {}  # Справочник подписок на историю тикеров
+        self.history_subscriptions: dict[tuple[Symbol, str], any] = {}  # Справочник подписок на историю тикеров. Ключ - (тикер, временной интервал), значение - данные подписки
         self.on_new_bar = Event()  # Получение нового бара по подписке
         self.on_order = Event()  # Получение заявки по подписке
         self.on_trade = Event()  # Получение сделки по подписке
