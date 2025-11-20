@@ -42,15 +42,15 @@ if __name__ == '__main__':  # Точка входа при запуске это
     # noinspection PyArgumentList
     cerebro = bt.Cerebro(stdstats=False, quicknotify=True)  # Инициируем "движок" BackTrader. Стандартная статистика сделок и кривой доходности не нужна. События принимаем без задержек, не дожидаясь нового бара
     store = Store(broker=default_broker)  # Хранилище брокера по умолчанию
-    # store = Store(broker=brokers['Ф'])  # Хранилище выбранного брокера
+    # store = Store(broker=brokers['<Ключ словаря brokers из Config.py>'])  # Хранилище выбранного брокера
     broker = store.getbroker()  # Брокер
     # noinspection PyArgumentList
     cerebro.setbroker(broker)  # Устанавливаем брокера
 
-    # data = store.getdata(dataname=dataname)  # 1. Все исторические дневные бары
-    # data = store.getdata(dataname=dataname, timeframe=TimeFrame.Minutes, compression=1, fromdate=week_ago, four_price_doji=True)  # 2. Исторические минутные бары за последнюю неделю с дожи 4-х цен
-    data = store.getdata(dataname=dataname, timeframe=bt.TimeFrame.Minutes, compression=1, fromdate=week_ago, live_bars=True)  # 3. Исторические и новые минутные бары за последнюю неделю по подписке
-    # data = store.getdata(dataname=dataname, timeframe=TimeFrame.Minutes, compression=1, fromdate=week_ago, live_bars=True, schedule=schedule)  # 4. Исторические и новые минутные бары за последнюю неделю по расписанию
+    data = store.getdata(dataname=dataname)  # 1. Все исторические дневные бары
+    # data = store.getdata(dataname=dataname, timeframe=bt.TimeFrame.Minutes, compression=1, fromdate=week_ago, four_price_doji=True)  # 2. Исторические минутные бары за последнюю неделю с дожи 4-х цен
+    # data = store.getdata(dataname=dataname, timeframe=bt.TimeFrame.Minutes, compression=1, fromdate=week_ago, live_bars=True)  # 3. Исторические и новые минутные бары за последнюю неделю по подписке
+    # data = store.getdata(dataname=dataname, timeframe=bt.TimeFrame.Minutes, compression=1, fromdate=week_ago, live_bars=True, schedule=schedule)  # 4. Исторические и новые минутные бары за последнюю неделю по расписанию
 
     cerebro.adddata(data)  # Добавляем данные
     cerebro.addstrategy(LogBars)  # Добавляем торговую систему
