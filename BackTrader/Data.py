@@ -3,9 +3,9 @@ from datetime import datetime, timedelta, time
 from time import sleep
 from threading import Thread, Event
 
+from backtrader import TimeFrame, date2num
 from backtrader.feed import AbstractDataBase
 from backtrader.utils.py3 import with_metaclass
-from backtrader import TimeFrame, date2num
 
 from FinLabPy.Core import Bar  # Бар
 from FinLabPy.BackTrader import Store  # Хранилище для BackTrader
