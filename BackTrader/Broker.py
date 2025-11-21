@@ -64,7 +64,7 @@ class Broker(with_metaclass(MetaBroker, BrokerBase)):
         - До нужного кол-ва (order_target_size)
         - До нужного объема (order_target_value)
         """
-        return next((position for position in self.positions if position.dataname == data.p.dataname), None)
+        return self.positions[data.p.dataname]  # Получаем позицию по тикеру или нулевую позицию, если тикера в списке позиций нет
 
     def buy(self, owner, data, size, price=None, plimit=None, exectype=None, valid=None, tradeid=0, oco=None, trailamount=None, trailpercent=None, parent=None, transmit=True, **kwargs) -> BuyOrder:
         """Заявка на покупку"""
