@@ -1,7 +1,7 @@
 import logging
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
-from pytz import timezone
 import backtrader as bt
 
 # noinspection PyUnusedImports
@@ -34,7 +34,7 @@ if __name__ == '__main__':  # Точка входа при запуске это
                         datefmt='%d.%m.%Y %H:%M:%S',  # Формат даты
                         level=logging.DEBUG,  # Уровень логируемых событий NOTSET/DEBUG/INFO/WARNING/ERROR/CRITICAL
                         handlers=[logging.FileHandler('Data.log', encoding='utf-8'), logging.StreamHandler()])  # Лог записываем в файл и выводим на консоль
-    logging.Formatter.converter = lambda *args: datetime.now(tz=timezone('Europe/Moscow')).timetuple()  # В логе время указываем по МСК
+    logging.Formatter.converter = lambda *args: datetime.now(tz=ZoneInfo('Europe/Moscow')).timetuple()  # В логе время указываем по МСК
 
     # noinspection PyArgumentList
     cerebro = bt.Cerebro(stdstats=False)  # Инициируем "движок" BackTrader. Стандартная статистика сделок и кривой доходности не нужна
