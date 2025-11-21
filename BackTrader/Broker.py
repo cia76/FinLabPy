@@ -210,28 +210,30 @@ class Broker(with_metaclass(MetaBroker, BrokerBase)):
             exec_type = FLOrder.StopLimit
             stop_price = order.price  # Цена срабатывания стоп заявки
             price = order.pricelimit  # Лимитная цена после срабатывания стоп заявки
-        else:  # Для остальных типов заявок
+        else:  # Для остальных типов заявок: Close, StopTrail, StopTrailLimit, Historical
+            self.logger.error(f'Тип заявки {order.getordername()} не реализован. Используйте типы заявок: Market, Limit, Stop, StopLimit')
             return None  # Конвертация невозможна. Выходим, дальше не продолжаем
         dataname = order.data.p.dataname  # Название тикера
-        if order.Status == BTOrder.Created:  # Создана
+        if order.status == BTOrder.Created:  # Создана
             status = FLOrder.Created
-        elif order.Status == BTOrder.Submitted:  # Отправлена брокеру
+        elif order.status == BTOrder.Submitted:  # Отправлена брокеру
             status = FLOrder.Submitted
-        elif order.Status == BTOrder.Accepted:  # Принята брокером
+        elif order.status == BTOrder.Accepted:  # Принята брокером
             status = FLOrder.Accepted
-        elif order.Status == BTOrder.Partial:  # Частично исполнена
+        elif order.status == BTOrder.Partial:  # Частично исполнена
             status = FLOrder.Partial
-        elif order.Status == BTOrder.Completed:  # Исполнена
+        elif order.status == BTOrder.Completed:  # Исполнена
             status = FLOrder.Completed
-        elif order.Status == BTOrder.Canceled:  # Отменена
+        elif order.status == BTOrder.Canceled:  # Отменена
             status = FLOrder.Canceled
-        elif order.Status == BTOrder.Expired:  # Снята по времени
+        elif order.status == BTOrder.Expired:  # Снята по времени
             status = FLOrder.Expired
-        elif order.Status == BTOrder.Margin:  # Недостаточно средств
+        elif order.status == BTOrder.Margin:  # Недостаточно средств
             status = FLOrder.Margin
-        elif order.Status == BTOrder.Rejected:  # Отклонена брокером
+        elif order.status == BTOrder.Rejected:  # Отклонена брокером
             status = FLOrder.Rejected
-        else:  # Для остальных статусов заявок
+        else:  # Все статусы разобраны. Проверка на всякий случай
+            self.logger.error(f'Неизвестный статус заявки {order.getstatusname()}')
             return None  # Конвертация невозможна. Выходим, дальше не продолжаем
         return FLOrder(
             self.store.broker,  # Брокер
