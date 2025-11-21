@@ -198,15 +198,15 @@ class Broker(with_metaclass(MetaBroker, BrokerBase)):
         """Заявка BackTrader -> Заявка FinLabPy"""
         price = 0  # Лимитная цена
         stop_price = 0  # Цена срабатывания стоп заявки
-        if order.exec_type == BTOrder.Market:  # Рыночная заявка
+        if order.exectype == BTOrder.Market:  # Рыночная заявка
             exec_type = FLOrder.Market
-        elif order.exec_type == BTOrder.Limit:  # Лимитная заявка
+        elif order.exectype == BTOrder.Limit:  # Лимитная заявка
             exec_type = FLOrder.Limit
             price = order.price  # Лимитная цена
-        elif order.exec_type == BTOrder.Stop:  # Стоп заявка
+        elif order.exectype == BTOrder.Stop:  # Стоп заявка
             exec_type = FLOrder.Stop
             stop_price = order.price  # Цена срабатывания стоп заявки
-        elif order.exec_type == BTOrder.StopLimit:  # Стоп-лимитная заявка
+        elif order.exectype == BTOrder.StopLimit:  # Стоп-лимитная заявка
             exec_type = FLOrder.StopLimit
             stop_price = order.price  # Цена срабатывания стоп заявки
             price = order.pricelimit  # Лимитная цена после срабатывания стоп заявки
