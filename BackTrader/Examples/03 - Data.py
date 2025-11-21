@@ -19,13 +19,7 @@ class LogBars(bt.Strategy):
 
     def notify_data(self, data, status, *args, **kwargs):
         """Изменение статуса приходящих баров"""
-        self.logger.info(data._getstatusname(status))  # Получаем статус только при live_bars=True
-
-    # def notify_cashvalue(self, cash, value):
-    #     """Текущие свободные средства и стоимость позиций"""
-    #     self.logger.info(f'Свободные средства : {cash}')
-    #     self.logger.info(f'Стоимость позиций  : {value}')
-    #     self.logger.info(f'Стоимость портфеля : {cash + value}')
+        self.logger.info(data._getstatusname(status))
 
 
 if __name__ == '__main__':  # Точка входа при запуске этого скрипта
@@ -40,7 +34,7 @@ if __name__ == '__main__':  # Точка входа при запуске это
     logging.Formatter.converter = lambda *args: datetime.now(tz=timezone('Europe/Moscow')).timetuple()  # В логе время указываем по МСК
 
     # noinspection PyArgumentList
-    cerebro = bt.Cerebro(stdstats=False, quicknotify=True)  # Инициируем "движок" BackTrader. Стандартная статистика сделок и кривой доходности не нужна. События принимаем без задержек, не дожидаясь нового бара
+    cerebro = bt.Cerebro(stdstats=False)  # Инициируем "движок" BackTrader. Стандартная статистика сделок и кривой доходности не нужна
     store = Store(broker=default_broker)  # Хранилище брокера по умолчанию
     # store = Store(broker=brokers['<Ключ словаря brokers из Config.py>'])  # Хранилище выбранного брокера
     broker = store.getbroker()  # Брокер
