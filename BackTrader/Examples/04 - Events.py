@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 from pytz import timezone
 import backtrader as bt
 
+# noinspection PyUnusedImports
 from FinLabPy.Config import brokers, default_broker  # Все брокеры и брокер по умолчанию
 from FinLabPy.Schedule.MOEX import Stocks  # Расписание торгов фондового рынка Московской Биржи
 from FinLabPy.BackTrader import Store  # Хранилище BackTrader
@@ -12,7 +13,6 @@ from FinLabPy.BackTrader import Store  # Хранилище BackTrader
 class Events(bt.Strategy):
     """Получение и отображение событий:
     - Получение следующего исторического/нового бара
-    - Срабатывание таймера
     - Изменение статуса заявки
     - Изменение статуса позиции
     - Изменение статуса приходящих баров (DELAYED / CONNECTED / DISCONNECTED / LIVE)
@@ -63,8 +63,10 @@ class Events(bt.Strategy):
         if trade.isclosed:  # Если позиция закрыта
             self.logger.info(f'Trade Profit, Gross={trade.pnl:.2f}, NET={trade.pnlcomm:.2f}')
 
+    # noinspection PyShadowingNames
     def notify_data(self, data, status, *args, **kwargs):
         """Изменение статуса приходящих баров"""
+        # noinspection PyProtectedMember
         data_status = data._getstatusname(status)  # Получаем статус
         self.logger.info(data_status)
         self.live = data_status == 'LIVE'  # Режим реальной торговли

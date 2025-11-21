@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 from pytz import timezone
 import backtrader as bt
 
+# noinspection PyUnusedImports
 from FinLabPy.Config import brokers, default_broker  # Все брокеры и брокер по умолчанию
 from FinLabPy.Schedule.MOEX import Stocks  # Расписание торгов фондового рынка Московской Биржи
 from FinLabPy.BackTrader import Store  # Хранилище BackTrader
@@ -17,8 +18,10 @@ class LogBars(bt.Strategy):
         """Получение следующего исторического/нового бара"""
         self.logger.info(f'{bt.num2date(self.data.datetime[0]):%d.%m.%Y %H:%M:%S} O:{self.data.open[0]} H:{self.data.high[0]} L:{self.data.low[0]} C:{self.data.close[0]} V:{int(self.data.volume[0])}')
 
+    # noinspection PyShadowingNames
     def notify_data(self, data, status, *args, **kwargs):
         """Изменение статуса приходящих баров"""
+        # noinspection PyProtectedMember
         self.logger.info(data._getstatusname(status))
 
 

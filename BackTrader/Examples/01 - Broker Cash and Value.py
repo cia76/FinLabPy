@@ -1,5 +1,6 @@
 import backtrader as bt
 
+# noinspection PyUnusedImports
 from FinLabPy.Config import brokers, default_broker  # Все брокеры и брокер по умолчанию
 from FinLabPy.BackTrader import Store  # Хранилище BackTrader
 
