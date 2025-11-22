@@ -141,8 +141,8 @@ class Finam(Broker):
         symbol = self.get_symbol_by_dataname(order.dataname)  # Получаем тикер по названию
         finam_symbol = f'{symbol.symbol}@{symbol.broker_info['mic']}'  # Тикер Финама
         side = Side.SIDE_BUY if order.buy else Side.SIDE_SELL  # Заявка на покупку или продажу
-        limit_price = Decimal(value=str(round(self.provider.price_to_finam_price(symbol.board, order.price), symbol.decimals)))  # Лимитная цена Финама
-        stop_price = Decimal(value=str(round(self.provider.price_to_finam_price(symbol.board, order.stop_price), symbol.decimals)))  # Стоп цена Финама
+        limit_price: Decimal = Decimal(str(round(self.provider.price_to_finam_price(symbol.board, order.price), symbol.decimals)))  # Лимитная цена Финама
+        stop_price: Decimal = Decimal(str(round(self.provider.price_to_finam_price(symbol.board, order.stop_price), symbol.decimals)))  # Стоп цена Финама
         stop_condition = StopCondition.STOP_CONDITION_LAST_UP if order.buy else StopCondition.STOP_CONDITION_LAST_DOWN  # Условие стоп цены
         client_order_id = str(int(datetime.now().timestamp()))  # Уникальный номер заявки
         if order.exec_type == Order.Limit:  # Лимит
