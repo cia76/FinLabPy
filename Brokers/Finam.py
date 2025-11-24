@@ -141,22 +141,23 @@ class Finam(Broker):
         symbol = self.get_symbol_by_dataname(order.dataname)  # Получаем тикер по названию
         finam_symbol = f'{symbol.symbol}@{symbol.broker_info['mic']}'  # Тикер Финама
         side = Side.SIDE_BUY if order.buy else Side.SIDE_SELL  # Заявка на покупку или продажу
-        limit_price: Decimal = Decimal(value=str(round(self.provider.price_to_finam_price(symbol.board, order.price), symbol.decimals)))  # Лимитная цена Финама
-        stop_price: Decimal = Decimal(value=str(round(self.provider.price_to_finam_price(symbol.board, order.stop_price), symbol.decimals)))  # Стоп цена Финама
+        quantity = Decimal(value=str(order.quantity))  # Кол-во в штуках
+        limit_price = Decimal(value=str(round(self.provider.price_to_finam_price(symbol.board, order.price), symbol.decimals)))  # Лимитная цена Финама
+        stop_price = Decimal(value=str(round(self.provider.price_to_finam_price(symbol.board, order.stop_price), symbol.decimals)))  # Стоп цена Финама
         stop_condition = StopCondition.STOP_CONDITION_LAST_UP if order.buy else StopCondition.STOP_CONDITION_LAST_DOWN  # Условие стоп цены
         client_order_id = str(int(datetime.now().timestamp()))  # Уникальный номер заявки
         if order.exec_type == Order.Limit:  # Лимит
-            finam_order = FinamOrder(account_id=self.account_id, symbol=finam_symbol, quantity=order.quantity, side=side, type=OrderType.ORDER_TYPE_LIMIT, client_order_id=client_order_id,
+            finam_order = FinamOrder(account_id=self.account_id, symbol=finam_symbol, quantity=quantity, side=side, type=OrderType.ORDER_TYPE_LIMIT, client_order_id=client_order_id,
                                      limit_price=limit_price)
         elif order.exec_type == Order.Stop:  # Стоп
-            finam_order = FinamOrder(account_id=self.account_id, symbol=finam_symbol, quantity=order.quantity, side=side, type=OrderType.ORDER_TYPE_STOP, client_order_id=client_order_id,
+            finam_order = FinamOrder(account_id=self.account_id, symbol=finam_symbol, quantity=quantity, side=side, type=OrderType.ORDER_TYPE_STOP, client_order_id=client_order_id,
                                      stop_price=stop_price, stop_condition=stop_condition)
         elif order.exec_type == Order.StopLimit:  # Стоп-лимит
-            finam_order = FinamOrder(account_id=self.account_id, symbol=finam_symbol, quantity=order.quantity, side=side, type=OrderType.ORDER_TYPE_STOP_LIMIT, client_order_id=client_order_id,
+            finam_order = FinamOrder(account_id=self.account_id, symbol=finam_symbol, quantity=quantity, side=side, type=OrderType.ORDER_TYPE_STOP_LIMIT, client_order_id=client_order_id,
                                      stop_price=stop_price, stop_condition=stop_condition,
                                      limit_price=limit_price)
         else:  # По рынку
-            finam_order = FinamOrder(account_id=self.account_id, symbol=finam_symbol, quantity=order.quantity, side=side, type=OrderType.ORDER_TYPE_MARKET, client_order_id=client_order_id)
+            finam_order = FinamOrder(account_id=self.account_id, symbol=finam_symbol, quantity=quantity, side=side, type=OrderType.ORDER_TYPE_MARKET, client_order_id=client_order_id)
         order_state: OrderState = self.provider.call_function(self.provider.orders_stub.PlaceOrder, finam_order)
         if order_state.status == OrderStatus.ORDER_STATUS_NEW:  # Должен вернуться статус "Новая заявка"
             order.id = order_state.order_id  # Уникальный код заявки
