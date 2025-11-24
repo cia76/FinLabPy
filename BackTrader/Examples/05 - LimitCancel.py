@@ -41,7 +41,7 @@ class LimitCancel(bt.Strategy):
             limit_price = self.data.close[0] * (1 - self.p.limit_pct / 100)  # На n% ниже цены закрытия
             self.order = self.buy(exectype=bt.Order.Limit, price=limit_price)  # Лимитная заявка на покупку
             # noinspection PyProtectedMember
-            self.logger.info(f'Заявка {self.order.ref} - {"Покупка" if self.order.isbuy else "Продажа"} {self.order.data._name} {self.order.size} @ {self.order.price} cоздана и отправлена на биржу {self.order.data.exchange}')
+            self.logger.info(f'Заявка {self.order.ref} - {"Покупка" if self.order.isbuy else "Продажа"} {self.order.data._name} {self.order.size} @ {self.order.price} cоздана')
 
     # noinspection PyShadowingNames
     def notify_data(self, data, status, *args, **kwargs):
