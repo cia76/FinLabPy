@@ -152,16 +152,17 @@ class Alor(Broker):
         quantity = self.provider.size_to_lots(exchange, symbol.symbol, order.quantity)  # Кол-во в лотах
         price = self.provider.price_to_alor_price(exchange, symbol.symbol, order.price)  # Цена
         stop_price = self.provider.price_to_alor_price(exchange, symbol.symbol, order.stop_price)  # Стоп цена
+        alor_board = self.provider.board_to_alor_board(symbol.board)  # Код режима торгов Алора
         condition = 'MoreOrEqual' if order.buy else 'LessOrEqual'  # Условие срабатывания стоп цены
         response = None  # Результат запроса
         if order.exec_type == Order.Market:  # Рыночная заявка
-            response = self.provider.create_market_order(self.portfolio, exchange, symbol.symbol, side, quantity, symbol.board)
+            response = self.provider.create_market_order(self.portfolio, exchange, symbol.symbol, side, quantity, alor_board)
         elif order.exec_type == Order.Limit:  # Лимитная заявка
-            response = self.provider.create_limit_order(self.portfolio, exchange, symbol.symbol, side, quantity, price, symbol.board)
+            response = self.provider.create_limit_order(self.portfolio, exchange, symbol.symbol, side, quantity, price, alor_board)
         elif order.exec_type == Order.Stop:  # Стоп заявка
-            response = self.provider.create_stop_order(self.portfolio, exchange, symbol.symbol, side, quantity, stop_price, symbol.board, condition)
+            response = self.provider.create_stop_order(self.portfolio, exchange, symbol.symbol, side, quantity, stop_price, alor_board, condition)
         elif order.exec_type == Order.StopLimit:  # Стоп-лимитная заявка
-            response = self.provider.create_stop_limit_order(self.portfolio, exchange, symbol.symbol, side, quantity, stop_price, price, symbol.board, condition)
+            response = self.provider.create_stop_limit_order(self.portfolio, exchange, symbol.symbol, side, quantity, stop_price, price, alor_board, condition)
         if not response:  # Если при отправке заявки на биржу произошла веб ошибка
             return False  # Операция завершилась с ошибкой
         order.id = response['orderNumber']  # Сохраняем пришедший номер заявки на бирже
