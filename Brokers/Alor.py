@@ -70,7 +70,7 @@ class Alor(Broker):
     def get_last_price(self, symbol):
         exchange = symbol.broker_info['exchange']  # Биржа
         quotes = self.provider.get_quotes(f'{exchange}:{symbol.symbol}')[0]  # Последнюю котировку получаем через запрос
-        return quotes['last_price'] if quotes else None  # Последняя цена сделки
+        return None if quotes is None else self.provider.alor_price_to_price(exchange, symbol.symbol, quotes['last_price'])  # Последняя цена сделки
 
     def get_value(self):
         value = self.provider.get_risk(self.portfolio, self.exchange)['portfolioLiquidationValue']  # Общая стоимость портфеля
