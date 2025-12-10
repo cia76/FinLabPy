@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo  # ВременнАя зона
 
 import backtrader as bt
 
