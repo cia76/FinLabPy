@@ -73,8 +73,8 @@ class Alor(Broker):
         return None if quotes is None else self.provider.alor_price_to_price(exchange, symbol.symbol, quotes['last_price'])  # Последняя цена сделки
 
     def get_value(self):
-        value = self.provider.get_risk(self.portfolio, self.exchange)['portfolioLiquidationValue']  # Общая стоимость портфеля
-        return round(value - self.get_cash(), 2)  # Стоимость позиций = Общая стоимость портфеля - Свободные средства
+        value = round(self.provider.get_risk(self.portfolio, self.exchange)['portfolioLiquidationValue'], 2)  # Общая стоимость портфеля
+        return value - self.get_cash()  # Стоимость позиций = Общая стоимость портфеля - Свободные средства
 
     def get_cash(self):
         if self.portfolio[0:3] == '750':  # Для счета срочного рынка
