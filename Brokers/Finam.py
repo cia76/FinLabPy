@@ -170,7 +170,7 @@ class Finam(Broker):
         self.provider.call_function(self.provider.orders_stub.CancelOrder, CancelOrderRequest(account_id=self.account_id, order_id=order.id))  # Удаление заявки
 
     def subscribe_transactions(self):
-        Thread(target=self.provider.subscriptions_order_trade_handler, name='SubscriptionsOrderTradeThread').start()  # Создаем и запускаем поток обработки своих заявок и сделок
+        Thread(target=self.provider.subscribe_orders_trades_thread, name='SubscriptionsOrderTradeThread').start()  # Создаем и запускаем поток обработки своих заявок и сделок
         self.provider.order_trade_queue.put(OrderTradeRequest(  # Ставим в буфер команд/сделок
             action=OrderTradeRequest.Action.ACTION_SUBSCRIBE,  # Подписываемся
             data_type=OrderTradeRequest.DataType.DATA_TYPE_ALL,  # на свои заявки и сделки
