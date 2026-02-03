@@ -36,6 +36,7 @@ class Broker(with_metaclass(MetaBroker, BrokerBase)):
         self.store.broker.on_order.subscribe(self._on_order)  # Получение заявки по подписке
         self.store.broker.on_trade.subscribe(self._on_trade)  # Получение сделки по подписке
         self.store.broker.on_position.subscribe(self._on_position)  # Получение позиции по подписке
+        self.store.broker.subscribe_transactions()  # Подписка на заявки, сделки, позиции
 
     def start(self):
         """Запуск"""
