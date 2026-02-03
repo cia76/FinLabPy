@@ -249,6 +249,7 @@ class Broker(with_metaclass(MetaBroker, BrokerBase)):
 
     def _on_order(self, order: FLOrder):
         """Получение заявки по подписке: Canceled/Expired/Margin/Rejected"""
+        self.logger.debug(f'Получена заявка {order}')
         bt_order = self._get_order(order.id)  # Заявка BackTrader по номеру заявки на бирже
         if bt_order is None:  # Если заявка не найдена
             return  # то выходим, дальше не продолжаем
@@ -267,6 +268,7 @@ class Broker(with_metaclass(MetaBroker, BrokerBase)):
 
     def _on_trade(self, trade: FLTrade):
         """Получение сделки по подписке. Исполнение заявки: Partial/Completed"""
+        self.logger.debug(f'Получена сделка {trade}')
         bt_order = self._get_order(trade.order_id)  # Заявка BackTrader по номеру заявки на бирже из сделки
         if bt_order is None:  # Если заявка не найдена
             return  # то выходим, дальше не продолжаем
@@ -293,4 +295,5 @@ class Broker(with_metaclass(MetaBroker, BrokerBase)):
 
     def _on_position(self, position: FLPosition):
         """Получение позиции по подписке"""
+        self.logger.debug(f'Получена позиция {position}')
         self.positions[position.dataname] = BTPosition(position.quantity, position.average_price)  # Сохраняем в списке открытых позиций с текущим кол-вом и средней ценой входа
