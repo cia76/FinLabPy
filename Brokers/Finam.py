@@ -131,7 +131,7 @@ class Finam(Broker):
                 exec_type,  # Тип
                 symbol.dataname,  # писание тикера
                 symbol.decimals,  # Кол-во десятичных знаков в цене
-                order.order.quantity,  # Кол-во в штуках
+                int(float(order.order.quantity.value)),  # Кол-во в штуках
                 price,  # Цена
                 stop_price,  # Цена срабатывания стоп заявки
                 Order.Partial if order.status == OrderStatus.ORDER_STATUS_PARTIALLY_FILLED else Order.Accepted))  # Статус
@@ -170,17 +170,11 @@ class Finam(Broker):
         self.provider.call_function(self.provider.orders_stub.CancelOrder, CancelOrderRequest(account_id=self.account_id, order_id=order.id))  # Удаление заявки
 
     def subscribe_transactions(self):
-        Thread(target=self.provider.subscribe_orders_trades_thread, name='SubscriptionsOrderTradeThread').start()  # Создаем и запускаем поток обработки своих заявок и сделок
-        self.provider.order_trade_queue.put(OrderTradeRequest(  # Ставим в буфер команд/сделок
-            action=OrderTradeRequest.Action.ACTION_SUBSCRIBE,  # Подписываемся
-            data_type=OrderTradeRequest.DataType.DATA_TYPE_ALL,  # на свои заявки и сделки
-            account_id=self.account_id))  # по торговому счету
+        Thread(target=self.provider.subscribe_orders_thread, name='SubscriptionOrdersThread').start()  # Создаем и запускаем поток обработки своих заявок
+        Thread(target=self.provider.subscribe_trades_thread, name='SubscriptionTradesThread').start()  # Создаем и запускаем поток обработки своих сделок
 
     def unsubscribe_transactions(self):
-        self.provider.order_trade_queue.put(OrderTradeRequest(  # Ставим в буфер команд/сделок
-            action=OrderTradeRequest.Action.ACTION_UNSUBSCRIBE,  # Отменяем подписку
-            data_type=OrderTradeRequest.DataType.DATA_TYPE_ALL,  # на свои заявки и сделки
-            account_id=self.account_id))  # по торговому счету
+        pass  # Отписки нет
 
     def close(self):
         self.provider.on_new_bar.unsubscribe(self._on_new_bar)  # Обработка нового бара
@@ -228,7 +222,7 @@ class Finam(Broker):
         """Получение сделки по подписке. Изменение позиции"""
         symbol = self._get_symbol_info(trade.symbol)  # Спецификация тикера
         dt_trade = self.provider.timestamp_to_msk_datetime(trade.timestamp.seconds)  # Дата и время исполнения сделки
-        quantity = trade.size.value  # Кол-во в штуках. Всегда положительное
+        quantity = int(float(trade.size.value))  # Кол-во в штуках. Всегда положительное
         if trade.side == Side.SIDE_SELL:  # Если сделка на продажу
             quantity *= -1  # то кол-во ставим отрицательным
         self.on_trade.trigger(Trade(
@@ -239,7 +233,7 @@ class Finam(Broker):
             symbol.decimals,  # Кол-во десятичных знаков в цене
             dt_trade,  # Дата и время сделки по времени биржи (МСК)
             quantity,  # Кол-во в штуках
-            self.provider.finam_price_to_price(symbol.symbol, symbol.broker_info['mic'], trade.price.value)))  # Цена сделки
+            self.provider.finam_price_to_price(symbol.symbol, symbol.broker_info['mic'], float(trade.price.value))))  # Цена сделки
         self.on_position.trigger(self.get_position(symbol))  # При любой сделке позиция изменяется. Отправим текущую или пустую позицию по тикеру по подписке
 
     def _on_order(self, order: OrderState):
@@ -283,7 +277,7 @@ class Finam(Broker):
             order_type,  # Тип заявки
             symbol.dataname,  # Название тикера
             symbol.decimals,  # Кол-во десятичных знаков в цене
-            order.order.quantity.value,  # Кол-во в штуках
-            self.provider.finam_price_to_price(symbol.symbol, symbol.broker_info['mic'], order.order.limit_price.value) if order.order.limit_price else 0,  # Цена
-            self.provider.finam_price_to_price(symbol.symbol, symbol.broker_info['mic'], order.order.stop_price.value) if order.order.stop_price else 0,  # Цена срабатывания стоп заявки
+            int(float(order.order.quantity.value)),  # Кол-во в штуках
+            self.provider.finam_price_to_price(symbol.symbol, symbol.broker_info['mic'], float(order.order.limit_price.value)) if order.order.limit_price else 0,  # Цена
+            self.provider.finam_price_to_price(symbol.symbol, symbol.broker_info['mic'], float(order.order.stop_price.value)) if order.order.stop_price else 0,  # Цена срабатывания стоп заявки
             order_status))  # Статус заявки (без Submitted/Margin)
