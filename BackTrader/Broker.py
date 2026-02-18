@@ -31,7 +31,7 @@ class Broker(with_metaclass(MetaBroker, BrokerBase)):
         self.pcs = defaultdict(deque)  # Справочник очереди всех родительских/дочерних заявок (Parent - Children)
         self.positions = defaultdict(BTPosition)  # Список позиций
         self.startingcash = self.cash = self.store.broker.get_cash()  # Стартовые и текущие свободные средства
-        self.value = self.store.broker.get_value()  # Текущая стоимость позиций
+        self.value = self.store.broker.get_value()  # Стоимость портфеля
 
         self.store.broker.on_order.subscribe(self._on_order)  # Получение заявки по подписке
         self.store.broker.on_trade.subscribe(self._on_trade)  # Получение сделки по подписке
@@ -49,7 +49,7 @@ class Broker(with_metaclass(MetaBroker, BrokerBase)):
         return 0 if self.store.BrokerCls is None else self.cash  # Если брокера нет в хранилище, то 0. Иначе, получаем его свободные средства
 
     def getvalue(self, datas: list[Data] = None) -> float:
-        """Стоимость всех позиций, выбранных позиций, выбранной позиции. Запрос вызывается каждый раз при отправке уведомлений из Strategy._notify"""
+        """Стоимость портфеля, выбранных позиций, выбранной позиции. Запрос вызывается каждый раз при отправке уведомлений из Strategy._notify"""
         if self.store.BrokerCls is None:  # Если брокера нет в хранилище
             return 0  # то стоимость 0
         if datas is None:  # Если стоимость всех позиций
@@ -286,8 +286,8 @@ class Broker(with_metaclass(MetaBroker, BrokerBase)):
             # Снимаем oco-заявку только после полного исполнения заявки
             # Если нужно снять oco-заявку на частичном исполнении, то прописываем это правило в ТС
             self._oco_pc_check(bt_order)  # Проверяем связанные и родительскую/дочерние заявки (Completed)
-        self.cash = self.store.broker.get_cash()  # Текущие свободные средства
-        self.value = self.store.broker.get_value()  # Текущая стоимость позиций
+        self.cash = self.store.broker.get_cash()  # Свободные средства
+        self.value = self.store.broker.get_value()  # Стоимость портфеля
 
     @staticmethod
     def _position_to_bt_position(position: FLPosition) -> BTPosition:
