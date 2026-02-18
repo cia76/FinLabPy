@@ -70,12 +70,14 @@ class Quik(Broker):
         if self.account['futures']:  # Для срочного рынка
             # noinspection PyBroadException
             try:  # Пытаемся получить стоимость позиций
-                return float(self.provider.get_futures_limit(self.account['firm_id'], self.account['trade_account_id'], 0, self.provider.currency)['data']['cbplused'])  # Тек.чист.поз. (Заблокированное ГО под открытые позиции)
+                cbpl_used = float(self.provider.get_futures_limit(self.account['firm_id'], self.account['trade_account_id'], 0, self.provider.currency)['data']['cbplused'])  # Тек.чист.поз. (Заблокированное ГО под открытые позиции)
+                return cbpl_used + self.get_cash()  # Стоимость портфеля срочного рынка
             except Exception:  # При ошибке Futures limit returns nil
                 return 0  # Выдаем пустое значение. Получим стоимость позиций когда сервер будет работать
         # Для остальных рынков
         self.get_positions()  # Получаем текущие позиции
-        return round(sum([position.current_price * position.quantity for position in self.positions]), 2)  # Суммируем текущую ст-сть всех позиций
+        pos_price = round(sum([position.current_price * position.quantity for position in self.positions]), 2)  # Суммируем текущую ст-сть всех позиций
+        return pos_price + self.get_cash()  # Стоимость портфеля
 
     def get_cash(self):
         if self.account['futures']:  # Для срочного рынка

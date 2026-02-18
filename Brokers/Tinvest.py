@@ -104,9 +104,7 @@ class Tinvest(Broker):
     def get_value(self):
         request = PortfolioRequest(account_id=self.account_id, currency=self.provider.currency)
         response: PortfolioResponse = self.provider.call_function(self.provider.stub_operations.GetPortfolio, request)  # Получаем портфель по счету
-        value = self.provider.money_value_to_float(response.total_amount_portfolio)  # Оценка портфеля
-        value -= self.provider.money_value_to_float(response.total_amount_currencies)  # без свободных средств по счету
-        return value
+        return self.provider.money_value_to_float(response.total_amount_portfolio)  # Оценка портфеля
 
     def get_cash(self):
         request = PortfolioRequest(account_id=self.account_id, currency=self.provider.currency)

@@ -187,7 +187,7 @@ class Broker(ABC):
         raise NotImplementedError
 
     def get_value(self) -> float:
-        """Стоимость позиций"""
+        """Стоимость портфеля"""
         raise NotImplementedError
 
     def get_cash(self) -> float:

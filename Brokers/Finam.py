@@ -88,8 +88,7 @@ class Finam(Broker):
 
     def get_value(self):
         account: GetAccountResponse = self.provider.call_function(self.provider.accounts_stub.GetAccount, GetAccountRequest(account_id=self.account_id))  # Получаем счет
-        cash_rub = next((cash.units + cash.nanos * 10**-9 for cash in account.cash if cash.currency_code == 'RUB'), 0)  # Свободные средства в рублях, если есть
-        return round(float(account.equity.value) - cash_rub, 2)  # Стоимость портфеля - свободные средства в рублях
+        return round(float(account.equity.value), 2)  # Стоимость портфеля
 
     def get_cash(self):
         account: GetAccountResponse = self.provider.call_function(self.provider.accounts_stub.GetAccount, GetAccountRequest(account_id=self.account_id))  # Получаем счет

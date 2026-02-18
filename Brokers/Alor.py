@@ -32,14 +32,14 @@ class Alor(Broker):
 
     def get_history(self, symbol, time_frame, dt_from=None, dt_to=None):
         bars = super().get_history(symbol, time_frame, dt_from, dt_to)  # Получаем бары из хранилища
+        alor_tf, intraday = self.provider.timeframe_to_alor_timeframe(time_frame)  # Временной интервал Алор с признаком внутридневного интервала
         if bars is None:  # Если бары из хранилища не получены
             bars = []  # Пока список полученных бар пустой
             seconds_from = 0 if dt_from is None else self.provider.msk_datetime_to_timestamp(dt_from)  # Первый возможный бар
         else:  # Если бары из хранилища получены
-            seconds_from = self.provider.msk_datetime_to_timestamp(bars[-1].datetime)  # Дата и время открытия последнего бара
+            seconds_from = self.provider.msk_datetime_to_timestamp(bars[-1].datetime) if intraday else int(bars[-1].datetime.timestamp())  # Дата и время открытия последнего бара
             del bars[-1]  # Удаляем последний бар. Он перепишется первым полученным баром за период
         seconds_to = self.provider.msk_datetime_to_timestamp(datetime.now() if dt_to is None else dt_to)  # Последний возможный бар
-        alor_tf, intraday = self.provider.timeframe_to_alor_timeframe(time_frame)  # Временной интервал Алор с признаком внутридневного интервала
         exchange = symbol.broker_info['exchange']  # Биржа
         history = self.provider.get_history(exchange, symbol.symbol, alor_tf, seconds_from, seconds_to)  # Запрос истории рынка
         if 'history' not in history:  # Если в полученной истории нет ключа history
@@ -73,8 +73,7 @@ class Alor(Broker):
         return None if quotes is None else self.provider.alor_price_to_price(exchange, symbol.symbol, quotes['last_price'])  # Последняя цена сделки
 
     def get_value(self):
-        value = round(self.provider.get_risk(self.portfolio, self.exchange)['portfolioLiquidationValue'], 2)  # Общая стоимость портфеля
-        return value - self.get_cash()  # Стоимость позиций = Общая стоимость портфеля - Свободные средства
+        return round(self.provider.get_risk(self.portfolio, self.exchange)['portfolioLiquidationValue'], 2)  # Общая стоимость портфеля
 
     def get_cash(self):
         if self.portfolio[0:3] == '750':  # Для счета срочного рынка
