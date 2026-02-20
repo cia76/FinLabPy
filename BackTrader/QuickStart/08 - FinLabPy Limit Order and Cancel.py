@@ -1,10 +1,9 @@
 import logging
 from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo  # ВременнАя зона
+from zoneinfo import ZoneInfo
 
 import backtrader as bt
 
-# noinspection PyUnusedImports
 from FinLabPy.Config import brokers, default_broker  # Все брокеры и брокер по умолчанию
 from FinLabPy.BackTrader import Store  # Хранилище BackTrader
 
@@ -27,7 +26,6 @@ class LimitCancel(bt.Strategy):
 
     def next(self):
         """Получение следующего исторического/нового бара"""
-        # noinspection PyProtectedMember
         self.logger.info(f'{self.data._name} ({bt.TimeFrame.Names[self.data.p.timeframe]} {self.data.p.compression}) {bt.num2date(self.data.datetime[0]):%d.%m.%Y %H:%M:%S} O:{self.data.open[0]} H:{self.data.high[0]} L:{self.data.low[0]} C:{self.data.close[0]} V:{int(self.data.volume[0])}')
         if not self.live:  # Если не в режиме реальной торговли
             return  # то выходим, дальше не продолжаем
@@ -40,16 +38,7 @@ class LimitCancel(bt.Strategy):
                 self.cancel(self.order)  # то снимаем ее
             limit_price = self.data.close[0] * (1 - self.p.limit_pct / 100)  # На n% ниже цены закрытия
             self.order = self.buy(exectype=bt.Order.Limit, price=limit_price)  # Лимитная заявка на покупку
-            # noinspection PyProtectedMember
-            self.logger.info(f'Заявка {self.order.ref} - {"Покупка" if self.order.isbuy else "Продажа"} {self.order.data._name} {self.order.size} @ {self.order.price} cоздана')
-
-    # noinspection PyShadowingNames
-    def notify_data(self, data, status, *args, **kwargs):
-        """Изменение статуса приходящих баров"""
-        # noinspection PyProtectedMember
-        data_status = data._getstatusname(status)  # Получаем статус (только при live_bars=True)
-        self.live = data_status == 'LIVE'  # Режим реальной торговли
-        self.logger.info(data_status)
+            self.logger.info(f'Order #{self.order.ref} - {"Buy" if self.order.isbuy else "Sell"} {self.order.data._name} {self.order.size} @ {self.order.price} has been created')
 
     def notify_order(self, order):
         """Изменение статуса заявки"""
@@ -70,7 +59,13 @@ class LimitCancel(bt.Strategy):
     def notify_trade(self, trade):
         """Изменение статуса позиции"""
         if trade.isclosed:  # Если позиция закрыта
-            self.logger.info(f'Позиция закрыта. Прибыль (Gross) = {trade.pnl:.2f}, С учетом комиссий (NET) = {trade.pnlcomm:.2f}')
+            self.logger.info(f'Position has been closed. Gross Profit = {trade.pnl:.2f}, NET Profit = {trade.pnlcomm:.2f}')
+
+    def notify_data(self, data, status, *args, **kwargs):
+        """Изменение статуса приходящих баров"""
+        data_status = data._getstatusname(status)  # Получаем статус (только при live_bars=True)
+        self.live = data_status == 'LIVE'  # Режим реальной торговли
+        self.logger.info(data_status)
 
 
 if __name__ == '__main__':  # Точка входа при запуске этого скрипта
@@ -83,14 +78,14 @@ if __name__ == '__main__':  # Точка входа при запуске это
                         handlers=[logging.FileHandler('LimitCancel.log', encoding='utf-8'), logging.StreamHandler()])  # Лог записываем в файл и выводим на консоль
     logging.Formatter.converter = lambda *args: datetime.now(tz=ZoneInfo('Europe/Moscow')).timetuple()  # В логе время указываем по МСК
 
-    # noinspection PyArgumentList
     cerebro = bt.Cerebro(stdstats=False, quicknotify=True)  # Инициируем "движок" BackTrader. Стандартная статистика сделок и кривой доходности не нужна. События принимаем без задержек, не дожидаясь нового бара
     store = Store(broker=default_broker)  # Хранилище брокера по умолчанию
     # store = Store(broker=brokers['<Ключ словаря brokers из Config.py>'])  # Хранилище выбранного брокера
     broker = store.getbroker()  # Брокер
-    # noinspection PyArgumentList
     cerebro.setbroker(broker)  # Устанавливаем брокера
     data = store.getdata(dataname=dataname, timeframe=bt.TimeFrame.Minutes, compression=1, fromdate=week_ago, live_bars=True)  # Исторические и новые минутные бары за последнюю неделю по подписке
     cerebro.adddata(data)  # Добавляем данные
     cerebro.addstrategy(LimitCancel)  # Добавляем торговую систему
+    cerebro.addsizer(bt.sizers.FixedSize, stake=1)  # Кол-во акций для покупки/продажи
+    cerebro.broker.setcommission(commission=0.001)  # Комиссия брокера 0.1% от суммы каждой исполненной заявки
     cerebro.run()  # Запуск торговой системы

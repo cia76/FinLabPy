@@ -1,25 +1,24 @@
 import logging
 from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo  # ВременнАя зона
+from zoneinfo import ZoneInfo
 
 import backtrader as bt
 
-# noinspection PyUnusedImports
 from FinLabPy.Config import brokers, default_broker  # Все брокеры и брокер по умолчанию
 from FinLabPy.BackTrader import Store  # Хранилище BackTrader
 
 
 class Events(bt.Strategy):
     """Получение и отображение событий:
-    - Получение следующего исторического/нового бара
-    - Изменение статуса заявки
-    - Изменение статуса позиции
-    - Изменение статуса приходящих баров (DELAYED / CONNECTED / DISCONNECTED / LIVE)
-    - Получение нового бара
+    - next - Получение следующего исторического/нового бара
+    - notify_cashvalue - Свободные средства, стоимость портфеля
+    - notify_order - Изменение статуса заявки
+    - notify_trade - Изменение статуса позиции
+    - notify_data - Изменение статуса приходящих баров (DELAYED/CONNECTED/DISCONNECTED/LIVE)
 
     Не используются события:
     - notify_timer - Срабатывание таймера
-    - notify_fund - Свободные средства, стоимость позиций с фондированием
+    - notify_fund - Свободные средства, стоимость портфеля с фондированием
     - notify_store - Уведомления хранилища
 
     Для проверки работы этого скрипта можно вручную открывать/закрывать позиции. Все события будут выведены на экран и записаны в лог
@@ -35,11 +34,11 @@ class Events(bt.Strategy):
         self.logger.info(f'{bt.num2date(self.data.datetime[0]):%d.%m.%Y %H:%M:%S} O:{self.data.open[0]} H:{self.data.high[0]} L:{self.data.low[0]} C:{self.data.close[0]} V:{int(self.data.volume[0])}')
 
     def notify_cashvalue(self, cash, value):
-        """Свободные средства, стоимость позиций"""
+        """Свободные средства, стоимость портфеля"""
         if self.live:  # Это событие будет приходить после получения каждого бара. Будем выводить данные только в режиме реальной торговли
             self.logger.info(f'Свободные средства : {cash}')
-            self.logger.info(f'Стоимость позиций  : {value}')
-            self.logger.info(f'Стоимость портфеля : {cash + value}')
+            self.logger.info(f'Стоимость позиций  : {value - cash}')
+            self.logger.info(f'Стоимость портфеля : {value}')
 
     def notify_order(self, order):
         """Изменение статуса заявки"""
@@ -62,10 +61,8 @@ class Events(bt.Strategy):
         if trade.isclosed:  # Если позиция закрыта
             self.logger.info(f'Trade Profit, Gross={trade.pnl:.2f}, NET={trade.pnlcomm:.2f}')
 
-    # noinspection PyShadowingNames
     def notify_data(self, data, status, *args, **kwargs):
         """Изменение статуса приходящих баров"""
-        # noinspection PyProtectedMember
         data_status = data._getstatusname(status)  # Получаем статус
         self.logger.info(data_status)
         self.live = data_status == 'LIVE'  # Режим реальной торговли
@@ -81,12 +78,10 @@ if __name__ == '__main__':  # Точка входа при запуске это
                         handlers=[logging.FileHandler('Events.log', encoding='utf-8'), logging.StreamHandler()])  # Лог записываем в файл и выводим на консоль
     logging.Formatter.converter = lambda *args: datetime.now(tz=ZoneInfo('Europe/Moscow')).timetuple()  # В логе время указываем по МСК
 
-    # noinspection PyArgumentList
     cerebro = bt.Cerebro(stdstats=False, quicknotify=True)  # Инициируем "движок" BackTrader. Стандартная статистика сделок и кривой доходности не нужна. События принимаем без задержек, не дожидаясь нового бара
     store = Store(broker=default_broker)  # Хранилище брокера по умолчанию
     # store = Store(broker=brokers['<Ключ словаря brokers из Config.py>'])  # Хранилище выбранного брокера
     broker = store.getbroker()  # Брокер
-    # noinspection PyArgumentList
     cerebro.setbroker(broker)  # Устанавливаем брокера
     data = store.getdata(dataname=dataname, timeframe=bt.TimeFrame.Minutes, compression=1, fromdate=week_ago, live_bars=True)  # Исторические и новые минутные бары за последнюю неделю по подписке
     cerebro.adddata(data)  # Добавляем данные
