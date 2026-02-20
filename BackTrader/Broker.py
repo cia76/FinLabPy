@@ -179,10 +179,10 @@ class Broker(with_metaclass(MetaBroker, BrokerBase)):
         ocos = self.ocos.copy()  # Пока ищем связанные заявки, они могут измениться. Поэтому, работаем с копией
         for order_ref, oco_ref in ocos.items():  # Пробегаемся по списку связанных заявок
             if oco_ref == order.ref:  # Если в заявке номер эта заявка указана как связанная (по номеру транзакции)
-                self.cancel_order(self.orders[order_ref])  # то отменяем заявку
+                self._cancel_order(self.orders[order_ref])  # то отменяем заявку
         if order.ref in ocos.keys():  # Если у этой заявки указана связанная заявка
             oco_ref = ocos[order.ref]  # то получаем номер транзакции связанной заявки
-            self.cancel_order(self.orders[oco_ref])  # отменяем связанную заявку
+            self._cancel_order(self.orders[oco_ref])  # отменяем связанную заявку
 
         if not order.parent and not order.transmit and order.status == BTOrder.Completed:  # Если исполнена родительская заявка
             pcs = self.pcs[order.ref]  # Получаем очередь родительской/дочерних заявок
@@ -193,7 +193,7 @@ class Broker(with_metaclass(MetaBroker, BrokerBase)):
             pcs = self.pcs[order.parent.ref]  # Получаем очередь родительской/дочерних заявок
             for child in pcs:  # Пробегаемся по всем заявкам
                 if child.parent and child.ref != order.ref:  # Пропускаем первую (родительскую) заявку и исполненную заявку
-                    self.cancel_order(child)  # Отменяем дочернюю заявку
+                    self._cancel_order(child)  # Отменяем дочернюю заявку
 
     def _bt_order_to_order(self, order: BTOrder) -> FLOrder | None:
         """Заявка BackTrader -> Заявка FinLabPy"""
@@ -254,13 +254,13 @@ class Broker(with_metaclass(MetaBroker, BrokerBase)):
         bt_order = self._get_order(order.id)  # Заявка BackTrader по номеру заявки на бирже
         if bt_order is None:  # Если заявка не найдена
             return  # то выходим, дальше не продолжаем
-        if bt_order.Status == BTOrder.Canceled:  # Отменена
+        if order.status == FLOrder.Canceled:  # Отменена
             bt_order.cancel()  # Отменяем существующую заявку (Order.Canceled)
-        elif bt_order.Status == BTOrder.Expired:  # Снята по времени. Нужно установить в заявке свойство valid
+        elif order.status == FLOrder.Expired:  # Снята по времени. Нужно установить в заявке свойство valid
             bt_order.expire()  # Отменяем текущую заявку по времени (Order.Expired)
-        elif bt_order.Status == BTOrder.Margin:  # Недостаточно средств
+        elif order.status == FLOrder.Margin:  # Недостаточно средств
             bt_order.margin()  # Отменяем существующую заявку по Margin Call (Order.Margin)
-        elif bt_order.Status == BTOrder.Rejected:  # Отклонена брокером
+        elif order.status == FLOrder.Rejected:  # Отклонена брокером
             bt_order.reject(self)  # Отменяем существующую заявку от брокера (Order.Rejected)
         else:  # Исполнена/Частично исполнена
             return  # Обработаем заявку при приходе сделки _on_trade. Выходим, дальше не продолжаем
