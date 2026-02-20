@@ -23,9 +23,9 @@ storage = 'file'  # Файловое хранилище
 # storage = 'db'  # Курс Базы данных для трейдеров https://finlab.vip/wpm-category/databases/
 brokers = {
     'АФ': Alor(code='АФ', name='Алор - Фондовый рынок', provider=ap_provider, account_id=1, storage=storage),  # Алор - Портфель фондового рынка
-    'АС': Alor(code='АС', name='Алор - Срочный рынок', provider=ap_provider, account_id=0, storage=storage),  # Алор - Портфель срочного рынка
+    # 'АС': Alor(code='АС', name='Алор - Срочный рынок', provider=ap_provider, account_id=0, storage=storage),  # Алор - Портфель срочного рынка
     # 'АВ': Alor(code='АВ', name='Алор - Валютный рынок', provider=ap_provider, account_id=2, storage=storage),  # Алор - Портфель валютного рынка
-    'ИФ': Alor(code='ИФ', name='Алор ИИС - Фондовый рынок', provider=ap_provider, account_id=4, storage=storage),  # Алор ИИС - Портфель фондового рынка
+    # 'ИФ': Alor(code='ИФ', name='Алор ИИС - Фондовый рынок', provider=ap_provider, account_id=4, storage=storage),  # Алор ИИС - Портфель фондового рынка
     # 'ИС': Alor(code='ИС', name='Алор ИИС - Срочный рынок', provider=ap_provider, account_id=3, storage=storage),  # Алор ИИС - Портфель срочного рынка
     # 'ИВ': Alor(code='ИВ', name='Алор ИИС - Валютный рынок', provider=ap_provider, account_id=5, storage=storage),  # Алор ИИС - Портфель валютного рынка
     'Ф': Finam(code='Ф', name='Финам', provider=fp_provider, storage=storage),  # Финам
