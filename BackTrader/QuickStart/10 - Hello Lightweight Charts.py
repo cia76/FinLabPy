@@ -9,13 +9,9 @@ from FinLabPy.BackTrader import Store, PlotLC  # Хранилище BackTrader, 
 
 class PlotIndicators(bt.Strategy):
     def __init__(self):
-        sma = MovingAverageSimple(self.data.close, period=100)  # SMA
-        rsi = RelativeStrengthIndex(self.data.close, period=14)  # RSI
-        momentum = Momentum(self.data.close, period=1)  # Momentum
-
-        setattr(sma.plotinfo, 'lines', {'sma': {'style': 'solid', 'color': 'blue'}})  # style='solid'/'dotted'/'dashed'/'large_dashed'/'sparse_dotted'
-        setattr(rsi.plotinfo, 'lines', {'rsi': {'pane_id': 1, 'color': 'green'}})
-        setattr(momentum.plotinfo, 'lines', {'momentum': {'pane_id': 2, 'color': 'red'}})
+        self.sma = MovingAverageSimple(self.data.close, period=100)  # SMA
+        self.rsi = RelativeStrengthIndex(self.data.close, period=14)  # RSI
+        self.momentum = Momentum(self.data.close, period=1)  # Momentum
 
 
 if __name__ == '__main__':  # Точка входа при запуске этого скрипта
@@ -33,4 +29,8 @@ if __name__ == '__main__':  # Точка входа при запуске это
     cerebro.addstrategy(PlotIndicators)  # Привязываем торговую систему
     cerebro.run()  # Запуск торговой системы
     # cerebro.plot(volume=False)  # Рисуем график
+    run_strat = cerebro.runstrats[0][0]  # ТС с результатами запуска
+    setattr(run_strat.momentum.plotinfo, 'lines', {'momentum': {'pane_id': 2, 'color': 'red'}})
+    setattr(run_strat.rsi.plotinfo, 'lines', {'rsi': {'pane_id': 1, 'color': 'green'}})
+    setattr(run_strat.sma.plotinfo, 'lines', {'sma': {'style': 'solid', 'color': 'blue'}})  # style='solid'/'dotted'/'dashed'/'large_dashed'/'sparse_dotted'
     cerebro.plot(plotter=PlotLC.Plot(volume=False))  # Рисуем график Lightweight Charts
