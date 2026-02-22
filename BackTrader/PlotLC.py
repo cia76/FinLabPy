@@ -90,26 +90,28 @@ class Plot(with_metaclass(MetaParams, object)):
         lines_with_new_pane_id = {  # Линии, которые будут отображаться на новых панелях (есть pane_id < 0)
             k: {**v, 'pane_id': max_pane_id - v['pane_id']}  # Делаем копию словаря v, чтобы не изменять исходные значения, изменяем номер панели
             for k, v in self.plot_params.items() if v.get('pane_id', 0) < 0}  # Берем только данные с отрицательным номером панели
+        if len(lines_with_new_pane_id) > 0:  # Если есть линии на новых панелях
+            max_pane_id += auto_pane - 1  # то корректируем максимальный номер панели
         lines_with_pane_id = {**lines_with_pane_id, **lines_with_new_pane_id}  # Объединяем все линии, которые будут отображаться на своих панелях
         lines_sorted_by_pane_id = dict(sorted(lines_with_pane_id.items(), key=lambda item: item[1]['pane_id']))  # Сортируем по возрастанию номера панели
         self.plot_params = {**lines_without_pane_id, **lines_sorted_by_pane_id}  # Объединяем сначала линии без панели, потом с панелями по возрастанию
 
         for observer in strategy.getobservers():  # Пробегаемся по всем панелям статистики
+            max_pane_id += 1  # Отображаем статистику на следюущей панели для каждой панели статистики
             color_cycle = cycle(self.color_palette)  # Автоматически задаваемый цвет линий
             lines = [observer.lines._getlinealias(line_id) for line_id in range(observer.lines.size())]  # Все линии статистики
             for i in range(len(lines)):  # Пробегаемся по всем линиям статистики
                 line_name = lines[i]  # Название линии
                 self.plot_params[line_name] = dict(pane_id=max_pane_id, color=next(color_cycle))  # Ставим номер панели максимально возможный (текущая панель) с цветом из палитры
                 self.pd_bars[line_name] = observer.lines[i].array[:len(self.pd_bars)]  # Добавляем значение линии статистики к барам
-            max_pane_id += 1  # Отображаем статистику на следюущей панели для каждой панели статистики (следующая панель)
 
-    def show(self):
+    def show(self, width=1080, height=720):
         try:
             from IPython import get_ipython  # В Jupyter Notebook всегда доступен объект IPython
             self.jupyter = get_ipython() is not None  # Если запущен в Jupyter Notebook, то возвращает объект ядра
         except ImportError:  # Если не возвращает
             self.jupyter = False  # то запуск не из Jupyter Notebook
-        chart = JupyterChart(1080, 720, toolbox=True) if self.jupyter else Chart(toolbox=True)  # График с элементами рисования в т.ч. для Jupyter Notebook
+        chart = JupyterChart(width, height, toolbox=True) if self.jupyter else Chart(width, height, toolbox=True)  # График с элементами рисования в т.ч. для Jupyter Notebook
         chart.layout(background_color='#222', text_color='#C3BCDB', font_family='sans-serif')  # Цвет фона и текста, шрифт
         chart.grid(color='#444')  # Цвет сетки
         chart.price_scale(scale_margin_top=0.1)  # От верха цен отступаем на 10%, от низа на 20% (по умолчанию)
