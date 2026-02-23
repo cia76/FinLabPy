@@ -7,7 +7,7 @@
 # - Рисовать нестандартные графики. Например, горизонтальные объемы
 # - Рисовать многомерные графики. Например, тепловые карты
 
-from itertools import cycle
+from itertools import cycle  # Циклическое изменение цвета линии, если цвет не задан
 
 import pandas as pd
 from backtrader import with_metaclass, MetaParams, num2date, TimeFrame

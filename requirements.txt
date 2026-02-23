@@ -3,9 +3,10 @@ pandas
 matplotlib
 mplfinance
 
+maxapi
 aiogram
 discord.py
 
 backtrader
-yadisk
 lightweight_charts
+yadisk
