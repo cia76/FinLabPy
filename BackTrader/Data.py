@@ -32,9 +32,9 @@ class Data(with_metaclass(MetaData, AbstractDataBase)):
 
     def __init__(self, **kwargs):
         self.store = Store(**kwargs)  # Хранилище BackTrader
-        self.logger = logging.getLogger(f'BTData.{self.store.broker.code}')  # Будем вести лог
+        self.logger = logging.getLogger(f'BTData.{self.store.data.code}')  # Будем вести лог
         self.schedule: Schedule = self.p.schedule if self.p.schedule is not None else Schedule([Session(time(0, 0, 0), time(23, 59, 59))])  # Расписание для запроса бар или круглосуточное
-        self.symbol = self.store.broker.get_symbol_by_dataname(self.p.dataname)  # Тикер по названию
+        self.symbol = self.store.data.get_symbol_by_dataname(self.p.dataname)  # Тикер по названию
         self.time_frame = self._bt_timeframe_to_tf(self.p.timeframe, self.p.compression)  # Конвертируем временной интервал из BackTrader
         self.history_bars: list[Bar] = []  # Бары из хранилища и брокера
         self.exit_event = Event()  # Событие выхода из потока подписки на новые бары по расписанию
@@ -54,7 +54,7 @@ class Data(with_metaclass(MetaData, AbstractDataBase)):
     def start(self):
         super(Data, self).start()
         self.put_notification(self.DELAYED)  # Отправляем уведомление об отправке исторических (не новых) бар
-        history_bars = self.store.broker.get_history(self.symbol, self.time_frame, self.p.fromdate, self.p.todate)  # Получаем исторические бары
+        history_bars = self.store.data.get_history(self.symbol, self.time_frame, self.p.fromdate, self.p.todate)  # Получаем исторические бары
         for history_bar in history_bars:  # Пробегаемся по всем историческим барам
             if self._is_bar_valid(history_bar):  # Если бар соответствует условиям выборки
                 self.history_bars.append(history_bar)  # то добавляем его в бары хранилища и брокера
@@ -64,7 +64,7 @@ class Data(with_metaclass(MetaData, AbstractDataBase)):
             return  # то подписка на новые бары не нужна. Выходим, дальше не продолжаем
         if self.p.schedule is None:  # Если получаем новые бары по подписке
             self.logger.debug(f'Запуск получения новыех бар {self.symbol.dataname} {self.time_frame} через подписку')
-            self.store.broker.subscribe_history(self.symbol, self.time_frame)
+            self.store.data.subscribe_history(self.symbol, self.time_frame)
         else:  # Если получаем новые бары по расписанию
             self.logger.debug(f'Запуск получения новыех бар {self.symbol.dataname} {self.time_frame} по расписанию')
             Thread(target=self._schedule_bars_thread).start()  # Создаем и запускаем получение новых бар по расписанию в потоке
@@ -110,7 +110,7 @@ class Data(with_metaclass(MetaData, AbstractDataBase)):
         if self.p.live_bars:  # Если была подписка/расписание
             if self.p.schedule is None:  # Если получаем новые бары по подписке
                 self.logger.info(f'Отмена подписки {self.guid} на новые бары {self.symbol.dataname} {self.time_frame}')
-                self.store.broker.unsubscribe_history(self.symbol, self.time_frame)  # то отменяем подписку
+                self.store.data.unsubscribe_history(self.symbol, self.time_frame)  # то отменяем подписку
             else:  # Если получаем новые бары по расписанию
                 self.logger.info(f'Отмена подписки по расписанию на новые бары {self.symbol.dataname} {self.time_frame}')
                 self.exit_event.set()  # то отменяем расписание
@@ -130,7 +130,7 @@ class Data(with_metaclass(MetaData, AbstractDataBase)):
             if exit_event_set:  # Если отмена
                 self.logger.debug(f'Отмена. Выход из потока очереди бар {self.symbol.dataname} {self.time_frame}')
                 return  # то выходим из потока, дальше не продолжаем
-            bars = self.store.broker.get_history(self.symbol, self.time_frame, trade_bar_open_datetime)  # Получаем бар когда наступит дата и время запроса
+            bars = self.store.data.get_history(self.symbol, self.time_frame, trade_bar_open_datetime)  # Получаем бар когда наступит дата и время запроса
             if bars is None:  # Если бар не получен
                 self.logger.warning(f'Бар {self.symbol.dataname} {self.time_frame} по расписанию на {trade_bar_open_datetime} не получен')
             else:  # Если бар получен

@@ -7,7 +7,7 @@ import backtrader as bt
 from FinLabPy.Config import brokers, default_broker  # Все брокеры и брокер по умолчанию
 from FinLabPy.Schedule.MOEX import Stocks  # Расписание торгов фондового рынка Московской Биржи
 from FinLabPy.BackTrader import Store  # Хранилище BackTrader
-from FinLabPy.Brokers.MOEX import MOEX  # Провайдер данных Московской Биржи (только данные)
+from FinLabPy.Brokers.MOEX import MOEX  # Провайдер данных Московской Биржи (без торговых функций)
 
 
 def get_cash_value():
@@ -46,19 +46,17 @@ if __name__ == '__main__':  # Точка входа при запуске это
     logging.Formatter.converter = lambda *args: datetime.now(tz=ZoneInfo('Europe/Moscow')).timetuple()  # В логе время указываем по МСК
 
     cerebro = bt.Cerebro(stdstats=False)  # Инициируем "движок" BackTrader. Стандартная статистика сделок и кривой доходности не нужна
-    store = Store(broker=default_broker)  # Хранилище брокера по умолчанию. Торговля
-    # store = Store(broker=brokers['<Ключ словаря brokers из Config.py>'])  # Хранилище выбранного брокера
+    store = Store(broker=default_broker, data=MOEX())  # Хранилище брокера по умолчанию
     broker = store.getbroker()  # Брокер
     cerebro.setbroker(broker)  # Устанавливаем брокера
 
-    moex_store = Store(broker=MOEX())  # Хранилище Московской Биржи. Данные
-    data = moex_store.getdata(dataname=dataname, fromdate=datetime(2024, 1, 1), todate=datetime(2026, 1, 1))  # 1. Исторические дневные бары за период
-    # data = moex_store.getdata(dataname=dataname, timeframe=bt.TimeFrame.Minutes, compression=1, fromdate=week_ago, four_price_doji=True)  # 2. Исторические минутные бары за последнюю неделю с дожи 4-х цен
-    # data = moex_store.getdata(dataname=dataname, timeframe=bt.TimeFrame.Minutes, compression=1, fromdate=week_ago, live_bars=True)  # 3. Исторические и новые минутные бары за последнюю неделю по подписке
-    # data = moex_store.getdata(dataname=dataname, timeframe=bt.TimeFrame.Minutes, compression=1, fromdate=week_ago, live_bars=True, schedule=schedule)  # 4. Исторические и новые минутные бары за последнюю неделю по расписанию
+    data = store.getdata(dataname=dataname, fromdate=datetime(2024, 1, 1), todate=datetime(2026, 1, 1))  # 1. Исторические дневные бары за период
+    # data = store.getdata(dataname=dataname, timeframe=bt.TimeFrame.Minutes, compression=1, fromdate=week_ago, four_price_doji=True)  # 2. Исторические минутные бары за последнюю неделю с дожи 4-х цен
+    # data = store.getdata(dataname=dataname, timeframe=bt.TimeFrame.Minutes, compression=1, fromdate=week_ago, live_bars=True)  # 3. Исторические и новые минутные бары за последнюю неделю по подписке
+    # data = store.getdata(dataname=dataname, timeframe=bt.TimeFrame.Minutes, compression=1, fromdate=week_ago, live_bars=True, schedule=schedule)  # 4. Исторические и новые минутные бары за последнюю неделю по расписанию
 
     cerebro.adddata(data)  # Добавляем данные
     cerebro.addstrategy(LogBars)  # Добавляем торговую систему
-    get_cash_value()  # Отображаем статистику портфеля. Брокер
     cerebro.run()  # Запуск торговой системы
+    get_cash_value()  # Отображаем статистику портфеля. Брокер
     cerebro.plot()  # Рисуем график. Биржа
