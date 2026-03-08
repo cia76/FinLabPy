@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo  # ВременнАя зона
 
 import backtrader as bt
 
-from FinLabPy.Config import brokers, default_broker  # Все брокеры и брокер по умолчанию
+from FinLabPy.Config import default_broker  # Брокер по умолчанию
 from FinLabPy.Schedule.MOEX import Stocks  # Расписание торгов фондового рынка Московской Биржи
 from FinLabPy.BackTrader import Store  # Хранилище BackTrader
 from FinLabPy.Brokers.MOEX import MOEX  # Провайдер данных Московской Биржи (без торговых функций)
@@ -46,7 +46,7 @@ if __name__ == '__main__':  # Точка входа при запуске это
     logging.Formatter.converter = lambda *args: datetime.now(tz=ZoneInfo('Europe/Moscow')).timetuple()  # В логе время указываем по МСК
 
     cerebro = bt.Cerebro(stdstats=False)  # Инициируем "движок" BackTrader. Стандартная статистика сделок и кривой доходности не нужна
-    store = Store(broker=default_broker, data=MOEX())  # Хранилище брокера по умолчанию
+    store = Store(broker=default_broker, data=MOEX())  # Хранилище. Брокер по умолчанию. Данные - Московская Биржа
     broker = store.getbroker()  # Брокер
     cerebro.setbroker(broker)  # Устанавливаем брокера
 
@@ -59,4 +59,4 @@ if __name__ == '__main__':  # Точка входа при запуске это
     cerebro.addstrategy(LogBars)  # Добавляем торговую систему
     cerebro.run()  # Запуск торговой системы
     get_cash_value()  # Отображаем статистику портфеля. Брокер
-    cerebro.plot()  # Рисуем график. Биржа
+    cerebro.plot()  # Рисуем график. Московская Биржа
