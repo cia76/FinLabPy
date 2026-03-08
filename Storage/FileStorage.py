@@ -1,5 +1,5 @@
 import logging
-import os.path
+from os import path, makedirs
 
 import pandas as pd
 
@@ -14,11 +14,13 @@ class FileStorage(Storage):
 
     def __init__(self, source):
         super().__init__(source)
-        self.datapath = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..', '..', 'Data', source, '')  # Путь сохранения файлов
+        self.datapath = path.join(path.dirname(path.realpath(__file__)), '..', '..', 'Data', source, '')  # Путь сохранения файлов
+        if not path.exists(self.datapath):  # Если папки для сохранения файла не существует
+            makedirs(self.datapath)  # то создаем ее
 
     def get_bars(self, symbol, time_frame, dt_from=None, dt_to=None):
         filename = f'{self.datapath}{symbol.dataname}_{time_frame}.txt'  # Полное имя файла
-        if not os.path.isfile(filename):  # Если файл не существует
+        if not path.isfile(filename):  # Если файл не существует
             self.logger.warning(f'Файл {filename} не найден')
             return None  # то выходим, дальше не продолжаем
         self.logger.debug(f'Получение файла {filename}')
