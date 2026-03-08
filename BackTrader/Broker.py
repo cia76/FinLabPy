@@ -94,7 +94,9 @@ class Broker(with_metaclass(MetaBroker, BrokerBase)):
     def stop(self):
         """Остановка брокера"""
         super(Broker, self).stop()
-        self.store.BrokerCls = None  # Удаляем класс брокера из хранилища
+        # Удаление брокера из хранилища происходит после окончания запуска ТС через cerebro.run()
+        # После этого невозможно вызывать ф-ии через cerebro.broker
+        # self.store.BrokerCls = None  # Удаляем класс брокера из хранилища
 
     # Внутренние функции
 
