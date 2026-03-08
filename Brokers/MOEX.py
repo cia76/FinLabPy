@@ -37,10 +37,20 @@ class MOEX(Broker):
         return symbol
 
     def get_history(self, symbol, time_frame, dt_from=None, dt_to=None):
+        if dt_from is None:  # Если не указана дата начала
+            dt_from = datetime(1990, 1, 1)  # то пытаемся получить с начала истории
+        if dt_to is None:  # Если не указана дата окончания
+            dt_to = datetime.now(self.provider.tz_msk).replace(tzinfo=None)  # то пытаемся получить до настоящего момента
+        bars = super().get_history(symbol, time_frame, dt_from, dt_to)  # Получаем бары из хранилища
+        if bars is None:  # Если бары из хранилища не получены
+            bars = []  # Пока список полученных бар пустой
+        else:  # Если бары из хранилища получены
+            dt_from = bars[-1].datetime  # Дата и время открытия последнего бара
+            del bars[-1]  # Удаляем последний бар. Он перепишется первым полученным баром за период
         moex_tf = self.provider.timeframe_to_moex_timeframe(time_frame)  # Временной интервал Московской Биржи (REST)
-        bars = self.provider.get_candles(symbol.board, symbol.symbol, dt_from, dt_to, moex_tf)  # Получаем всю историю тикера
-        col_bars = {col: idx for idx, col in enumerate(bars['candles']['columns'])}  # Колонки истории тикера с их порядковыми номерами
-        data_bars = bars['candles']['data']  # Данные истории тикера
+        history = self.provider.get_candles(symbol.board, symbol.symbol, dt_from, dt_to, moex_tf)  # Получаем всю историю тикера
+        col_bars = {col: idx for idx, col in enumerate(history['candles']['columns'])}  # Колонки истории тикера с их порядковыми номерами
+        data_bars = history['candles']['data']  # Данные истории тикера
         if len(data_bars) == 0:  # Если бары не получены
             return None  # то выходим, дальше не продолжаем
         for bar in data_bars:  # Пробегаемся по всем барам
@@ -86,6 +96,9 @@ class MOEX(Broker):
         col_marketdata = {col: idx for idx, col in enumerate(si['marketdata']['columns'])}  # Колонки рыночных данных тикера с их порядковыми номерами
         data_marketdata = si['marketdata']['data'][0]  # Рыночные данные тикера
         return data_marketdata[col_marketdata['LAST']]
+
+    def close(self):
+        pass  # У Московской Биржи нет требований к закрытию соединений
 
     # Внутренние функции
 
