@@ -1,4 +1,7 @@
-# Отображение биржевых данных в TradingView Lightweight Charts https://tradingview.github.io/lightweight-charts/
+# Отображение биржевых данных TradingView Lightweight Charts https://tradingview.github.io/lightweight-charts/
+# Оригинальная библиотека для Python: https://github.com/louisnw01/lightweight-charts-python
+# Пришлось делать свою версию в FinLabPy/Plot/LightweightCharts из-за перехода на Lightweight Charts версии 5
+
 # Что не может делать из коробки:
 # - Рисовать на панелях индикаторов. Можно рисовать только на панели цен
 # - Отображать легенду линии на своей панели. Все линии в легенде в левом верхнем углу
