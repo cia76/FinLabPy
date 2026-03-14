@@ -52,7 +52,7 @@ class BuyPullbackSellTime(bt.Strategy):
         """Изменение статуса позиции"""
         if not trade.isclosed:  # Если позиция не закрыта
             return  # то статус позиции не изменился, выходим, дальше не продолжаем
-        self.log(f'Trade Profit, Gross={trade.pnl:.2f}, NET={trade.pnlcomm:.2f}')
+        self.logger.info(f'Trade Profit, Gross={trade.pnl:.2f}, NET={trade.pnlcomm:.2f}')
 
 
 if __name__ == '__main__':  # Точка входа при запуске этого скрипта

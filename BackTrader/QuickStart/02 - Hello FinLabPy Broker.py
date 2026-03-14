@@ -6,7 +6,7 @@ from FinLabPy.BackTrader import Store  # Хранилище BackTrader
 
 def get_cash_value():
     cash = cerebro.broker.getcash()  # Свободные средства
-    value = cerebro.broker.getvalue()  # Стоимость позиций
+    value = cerebro.broker.getvalue()  # Стоимость портфеля
     print(f'Свободные средства : {cash}')
     print(f'Стоимость позиций  : {value - cash}')
     print(f'Стоимость портфеля : {value}')

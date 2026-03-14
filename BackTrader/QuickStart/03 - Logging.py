@@ -10,7 +10,7 @@ logger = logging.getLogger('Logging')  # Будем вести лог
 
 def get_cash_value():
     cash = cerebro.broker.getcash()  # Свободные средства
-    value = cerebro.broker.getvalue()  # Стоимость позиций
+    value = cerebro.broker.getvalue()  # Стоимость портфеля
     logger.info(f'Свободные средства : {cash}')
     logger.info(f'Стоимость позиций  : {value - cash}')
     logger.info(f'Стоимость портфеля : {value}')
@@ -24,7 +24,6 @@ if __name__ == '__main__':  # Точка входа при запуске это
     logging.Formatter.converter = lambda *args: datetime.now(tz=ZoneInfo('Europe/Moscow')).timetuple()  # В логе время указываем по МСК
 
     cerebro = bt.Cerebro()  # Инициируем "движок" BackTrader
-
     logger.debug('Стартовый капитал')
     get_cash_value()  # Отображаем статистику портфеля до запуска ТС
     cerebro.run()  # Запуск ТС. Пока ее у нас нет

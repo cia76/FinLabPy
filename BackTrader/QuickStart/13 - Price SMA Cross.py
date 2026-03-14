@@ -17,7 +17,7 @@ class PriceSMACross(bt.Strategy):
 
     def __init__(self):
         """Инициализация торговой системы"""
-        self.close = self.datas[0].close  # Цены закрытия
+        self.close = self.data.close  # Цены закрытия
         self.order = None  # Заявка
         self.sma = bt.indicators.MovingAverageSimple(self.close, period=self.p.sma_period)  # SMA по ценам закрытия
         self.broker_start_value = self.broker.getvalue()  # Стартовый капитал
@@ -40,22 +40,23 @@ class PriceSMACross(bt.Strategy):
 
     def notify_order(self, order):
         """Изменение статуса заявки"""
-        if order.status in [order.Submitted, order.Accepted]:  # Если заявка не исполнена (отправлена брокеру или принята брокером)
+        if order.status in (bt.Order.Submitted, bt.Order.Accepted):  # Если заявка не исполнена (отправлена брокеру или принята брокером)
             return  # то статус заявки не изменился, выходим, дальше не продолжаем
-        if order.status in [order.Completed]:  # Если заявка исполнена
+        if order.status == bt.Order.Partial:  # Если заявка частично исполнена
+            return  # то ждем полного исполнения заявки, выходим, дальше не продолжаем
+        if order.status == bt.Order.Completed:  # Если заявка исполнена
             if order.isbuy():  # Заявка на покупку
                 self.logger.info(f'Bought @{order.executed.price:.2f}, Cost={order.executed.value:.2f}, Comm={order.executed.comm:.2f}')
             elif order.issell():  # Заявка на продажу
                 self.logger.info(f'Sold @{order.executed.price:.2f}, Cost={order.executed.value:.2f}, Comm={order.executed.comm:.2f}')
-        elif order.status in [order.Canceled, order.Margin, order.Rejected]:  # Заявка отменена, нет средств, отклонена брокером
-            self.logger.info('Canceled/Margin/Rejected')
+        elif order.status in (bt.Order.Canceled, bt.Order.Margin, bt.Order.Rejected, bt.Order.Expired):  # Если заявка отменена, нет средств, заявка отклонена брокером, снята по времени (снята)
+            self.logger.info(f'Cancel Status: {order.getstatusname()}')
         self.order = None  # Этой заявки больше нет
 
     def notify_trade(self, trade):
         """Изменение статуса позиции"""
-        if not trade.isclosed:  # Если позиция не закрыта
-            return  # то статус позиции не изменился, выходим, дальше не продолжаем
-        self.logger.info(f'Trade Profit, Gross={trade.pnl:.2f}, NET={trade.pnlcomm:.2f}')
+        if trade.isclosed:  # Если позиция закрыта
+            self.logger.info(f'Trade Profit, Gross={trade.pnl:.2f}, NET={trade.pnlcomm:.2f}')
 
     def stop(self):
         """Окончание запуска торговой системы"""
