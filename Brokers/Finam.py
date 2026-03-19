@@ -7,10 +7,9 @@ from google.type.decimal_pb2 import Decimal
 
 from FinLabPy.Core import Broker, Bar, Position, Trade, Order, Symbol  # Брокер, бар, позиция, сделка, заявка, тикер
 from FinamPy import FinamPy  # Работа с Finam Trade API gRPC https://tradeapi.finam.ru из Python
-from FinamPy.grpc.marketdata.marketdata_service_pb2 import BarsRequest, BarsResponse, QuoteRequest, QuoteResponse, SubscribeBarsResponse, TimeFrame  # История
-from FinamPy.grpc.accounts.accounts_service_pb2 import GetAccountRequest, GetAccountResponse  # Счет
-from FinamPy.grpc.orders.orders_service_pb2 import OrdersRequest, OrdersResponse, OrderType, OrderState, OrderStatus, \
-    Order as FinamOrder, StopCondition, CancelOrderRequest, OrderTradeRequest  # Заявки
+from FinamPy.grpc.marketdata_service_pb2 import BarsRequest, BarsResponse, QuoteRequest, QuoteResponse, SubscribeBarsResponse, TimeFrame  # История
+from FinamPy.grpc.accounts_service_pb2 import GetAccountRequest, GetAccountResponse  # Счет
+from FinamPy.grpc.orders_service_pb2 import OrdersRequest, OrdersResponse, OrderType, OrderState, OrderStatus, Order as FinamOrder, StopCondition, CancelOrderRequest, OrderTradeRequest  # Заявки
 from FinamPy.grpc.side_pb2 import Side  # Покупка/продажа
 from FinamPy.grpc.trade_pb2 import AccountTrade  # Сделка
 
@@ -251,6 +250,9 @@ class Finam(Broker):
             order_status = Order.Created
         elif order.status == OrderStatus.ORDER_STATUS_PARTIALLY_FILLED:  # Частично исполненная
             order_status = Order.Partial
+        elif order.status == OrderStatus.ORDER_STATUS_FORWARDING:  # Исполнение стоп заявки, создание рыночной/лимитной заявки
+            # client_order_id = order.order.client_order_id  # По этому номеру можно связать стоп и рыночную/лимитную заявки
+            pass  # Исполнение стоп заявки получим со статусом OrderStatus.ORDER_STATUS_EXECUTED
         elif order.status in (OrderStatus.ORDER_STATUS_FILLED,  # Исполненная
                               OrderStatus.ORDER_STATUS_EXECUTED):  # Исполнена
             order_status = Order.Completed
@@ -264,7 +266,8 @@ class Finam(Broker):
             order_status = Order.Rejected
         elif order.status == OrderStatus.ORDER_STATUS_EXPIRED:  # Истекла
             order_status = Order.Expired
-        elif order.status == OrderStatus.ORDER_STATUS_WAIT:  # Ожидает
+        elif order.status in (OrderStatus.ORDER_STATUS_WAIT,  # Ожидает исполнения (лимитная заявка)
+                              OrderStatus.ORDER_STATUS_WATCHING):  # Наблюдение (стоп заявка)
             order_status = Order.Accepted
         else:  # Остальные статусы заявок
             raise NotImplementedError  # не реализованы
