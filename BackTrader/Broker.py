@@ -245,7 +245,7 @@ class Broker(with_metaclass(MetaBroker, BrokerBase)):
             exec_type,  # Тип заявки
             dataname,  # Название тикера
             self.store.broker.get_symbol_by_dataname(dataname).decimals,  # Кол-во десятичных знаков в цене
-            order.size,  # Кол-во в штуках
+            abs(order.size),  # Кол-во в штуках. В BackTrader для продажи задается отрицательное значение. При передачи в API кол-во всегда должно быть положительным
             price,  # Лимитная цена для лимитных и стоп лимитных заявок
             stop_price,  # Стоп цена срабатывания для стоп и стоп лимитных заявок
             status)  # Статус заявки
