@@ -33,9 +33,9 @@ class Broker(with_metaclass(MetaBroker, BrokerBase)):
         self.startingcash = self.cash = self.store.broker.get_cash()  # Стартовые и текущие свободные средства
         self.value = self.store.broker.get_value()  # Стоимость портфеля
 
-        self.store.broker.on_order.subscribe(self._on_order)  # Получение заявки по подписке
-        self.store.broker.on_trade.subscribe(self._on_trade)  # Получение сделки по подписке
-        self.store.broker.on_position.subscribe(self._on_position)  # Получение позиции по подписке
+        self.store.broker.on_order.subscribe(self._on_order)  # Обработка заявки по подписке
+        self.store.broker.on_trade.subscribe(self._on_trade)  # Обработка сделки по подписке
+        self.store.broker.on_position.subscribe(self._on_position)  # Обработка позиции по подписке
         self.store.broker.subscribe_transactions()  # Подписка на заявки, сделки, позиции
 
     def start(self):
