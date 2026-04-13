@@ -5,7 +5,7 @@ from typing import Any  # Любой тип
 from datetime import datetime  # Работа с датой и временем
 from math import copysign  # Знак числа
 
-import pandas as pd
+import pandas as pd  # Конвертация бар в формат pandas DataFrame
 
 
 class Symbol:
@@ -26,13 +26,13 @@ class Symbol:
 
 class Bar:
     """Бар"""
-    def __init__(self, board: str, symbol: str, dataname: str, time_frame: str, datetime: datetime, open: float, high: float, low: float, close: float, volume: int):
+    def __init__(self, board: str, symbol: str, dataname: str, time_frame: str, date_time: datetime, open_: float, high: float, low: float, close: float, volume: int):
         self.board = board  # Код режима торгов
         self.symbol = symbol  # Тикер
         self.dataname = dataname  # Название тикера
         self.time_frame = time_frame  # Временной интервал
-        self.datetime = datetime  # Дата и время открытия бара по времени биржи
-        self.open = open  # Цена открытия
+        self.datetime = date_time  # Дата и время открытия бара по времени биржи (date_time, чтобы не было конфликта с типом datetime)
+        self.open = open_  # Цена открытия (open_, чтобы не было конфликта с функцией open)
         self.high = high  # Максимальная цена
         self.low = low  # Минимальная цена
         self.close = close  # Цена закрытия
@@ -78,13 +78,13 @@ class Order:
 
 class Trade:
     """Сделка"""
-    def __init__(self, broker, order_id: str, dataname: str, description: str, decimals: int, datetime: datetime, quantity: int, price: int | float):
+    def __init__(self, broker, order_id: str, dataname: str, description: str, decimals: int, date_time: datetime, quantity: int, price: int | float):
         self.broker = broker  # Брокер
         self.order_id = order_id  # Уникальный код заявки, по которой исполнилась сделка
         self.dataname = dataname  # Название тикера
         self.description = description  # Описание тикера
         self.decimals = decimals  # Кол-во десятичных знаков в цене
-        self.datetime = datetime  # Дата и время сделки по времени биржи
+        self.datetime = date_time  # Дата и время сделки по времени биржи (date_time, чтобы не было конфликта с типом datetime)
         self.quantity = quantity  # Кол-во в штуках. Положительное - длинная позиция, отрицательное - короткая позиция
         self.price = price  # Цена исполнения в рублях
 
@@ -149,7 +149,7 @@ class Broker(ABC):
         self.positions: list[Position] = []  # Текущие позиции
         self.orders: list[Order] = []  # Активные заявки
 
-        self.history_subscriptions: dict[tuple[Symbol, str], any] = {}  # Справочник подписок на историю тикеров. Ключ - (тикер, временной интервал), значение - данные подписки
+        self.history_subscriptions: dict[tuple[Symbol, str], Any] = {}  # Справочник подписок на историю тикеров. Ключ - (тикер, временной интервал), значение - данные подписки
         self.on_new_bar = Event()  # Получение нового бара по подписке
         self.on_order = Event()  # Получение заявки по подписке
         self.on_trade = Event()  # Получение сделки по подписке
@@ -210,7 +210,7 @@ class Broker(ABC):
                 symbol.decimals,  # Кол-во десятичных знаков в цене
                 0,  # Кол-во в штуках (позиция закрыта)
                 0,  # Цена входа в рублях за штуку (не имеет смысла для закрытой позиции)
-                self.get_last_price(symbol))  # Последняя цена в рублях за штуку
+                self.get_last_price(symbol) or 0)  # Последняя цена в рублях за штуку или 0, если не найдена
         return position
 
     def get_orders(self) -> list[Order]:
