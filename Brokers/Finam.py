@@ -165,7 +165,7 @@ class Finam(Broker):
         else:  # По рынку
             finam_order = FinamOrder(account_id=self.account_id, symbol=finam_symbol, quantity=quantity, side=side, type=OrderType.ORDER_TYPE_MARKET, client_order_id=client_order_id)
         order_state: OrderState = self.provider.call_function(self.provider.orders_stub.PlaceOrder, finam_order)
-        if order_state.status == OrderStatus.ORDER_STATUS_NEW:  # Должен вернуться статус "Новая заявка"
+        if order_state.status in (OrderStatus.ORDER_STATUS_NEW, OrderStatus.ORDER_STATUS_WATCHING):  # Должен вернуться статус "Новая заявка" для рыночной/лимитной заявки, или "Наблюдение" для стоп/стоп-лимитной заявки
             order.id = order_state.order_id  # Уникальный код заявки
             order.status = Order.Submitted  # Заявка отправлена брокеру
             self.orders.append(order)  # Добавляем новую заявку в список заявок
