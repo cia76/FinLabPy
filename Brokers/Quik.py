@@ -41,7 +41,8 @@ class Quik(Broker):
             return None  # то выходим, дальше не продолжаем
         bars = []  # Список полученных бар
         for bar in history['data']:  # Пробегаемся по всем полученным барам
-            dt = datetime(bar['datetime']['year'], bar['datetime']['month'], bar['datetime']['day'], bar['datetime']['hour'], bar['datetime']['min'])  # Собираем дату и время бара до минут
+            dt_json = bar['datetime']  # Получаем составное значение даты и времени открытия бара
+            dt = datetime(dt_json['year'], dt_json['month'], dt_json['day'], dt_json['hour'], dt_json['min'])  # Собираем дату и время бара до минут
             if dt_from and dt_from > dt:  # Если задана дата начала, и она позже даты и времени бара
                 continue  # то пропускаем этот бар
             if dt_to and dt_to < dt:  # Если задана дата окончания, и она раньше даты и времени бара
