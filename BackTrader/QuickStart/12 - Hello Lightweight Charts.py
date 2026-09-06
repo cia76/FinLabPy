@@ -1,10 +1,10 @@
-from datetime import date, timedelta
+from datetime import date, timedelta  # Диапазон дат за последний год
 
-import backtrader as bt
-from backtrader.indicators import MovingAverageSimple, Momentum, RelativeStrengthIndex  # Классические индикаторы
+import backtrader as bt  # Основная библиотека BackTrader
+from backtrader.indicators import MovingAverageSimple, RelativeStrengthIndex, Momentum  # Классические индикаторы SMA, RSI, Momentum
 
 from FinLabPy.Config import brokers, default_broker  # Все брокеры и брокер по умолчанию
-from FinLabPy.BackTrader import Store, PlotLC  # Хранилище BackTrader, график Lightweight Charts
+from FinLabPy.BackTrader import Store, PlotLC  # Хранилище BackTrader, построение графика Lightweight Charts
 
 
 class PlotIndicators(bt.Strategy):
@@ -18,17 +18,20 @@ if __name__ == '__main__':  # Точка входа при запуске это
     dataname = 'TQBR.SBER'  # Тикер
     year_ago = date.today() - timedelta(days=365)  # Год назад
 
-    # cerebro = bt.Cerebro()  # Инициируем "движок" BackTrader
-    cerebro = bt.Cerebro(stdstats=False)  # Инициируем "движок" BackTrader. Стандартная статистика сделок и кривой доходности не нужна
     store = Store(broker=default_broker)  # Хранилище брокера по умолчанию
     # store = Store(broker=brokers['<Ключ словаря brokers из Config.py>'])  # Хранилище выбранного брокера
     broker = store.getbroker()  # Брокер
-    cerebro.setbroker(broker)  # Устанавливаем брокера
     data = store.getdata(dataname=dataname, fromdate=year_ago)
+
+    # cerebro = bt.Cerebro()  # Инициируем "движок" BackTrader
+    cerebro = bt.Cerebro(stdstats=False)  # Инициируем "движок" BackTrader. Стандартная статистика сделок и кривой доходности не нужна
+    cerebro.setbroker(broker)  # Устанавливаем брокера
     cerebro.adddata(data)  # Привязываем исторические данные
-    cerebro.addstrategy(PlotIndicators)  # Привязываем торговую систему
+    cerebro.addstrategy(PlotIndicators)  # Привязываем индикаторы через торговую систему
     cerebro.run()  # Запуск торговой системы
-    # cerebro.plot(volume=False)  # Рисуем график
+
+    # cerebro.plot(volume=False)  # Рисуем стандартный график BackTrader
+
     run_strat = cerebro.runstrats[0][0]  # ТС с результатами запуска
     setattr(run_strat.momentum.plotinfo, 'lines', {'momentum': {'pane_id': 2, 'color': 'red'}})
     setattr(run_strat.rsi.plotinfo, 'lines', {'rsi': {'pane_id': 1, 'color': 'green'}})
