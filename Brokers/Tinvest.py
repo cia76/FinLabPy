@@ -224,8 +224,8 @@ class Tinvest(Broker):
             self.provider.call_function(self.provider.stub_stop_orders.CancelStopOrder, request)  # Отменяем активную стоп заявку
 
     def subscribe_transactions(self):
-        Thread(target=self.provider.subscriptions_trades_handler, name='SubscriptionsTradesThread').start()  # Создаем и запускаем поток обработки подписок на сделки
-        Thread(target=self.provider.subscriptions_order_state_handler, name='SubscriptionsOrderStateThread').start()  # Создаем и запускаем поток обработки подписок на заявки
+        Thread(target=self.provider.subscriptions_trades_handler, name='SubscriptionsTradesThread', args=(self.account_id,)).start()  # Создаем и запускаем поток обработки подписок на сделки по счету
+        Thread(target=self.provider.subscriptions_order_state_handler, name='SubscriptionsOrderStateThread', args=(self.account_id,)).start()  # Создаем и запускаем поток обработки подписок на заявки по счету
 
     def unsubscribe_transactions(self):
         pass  # Подписки на позиции, сделки, заявки автоматически закроются при закрытии канала в функции close
