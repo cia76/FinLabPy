@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod  # Абстрактный класс и метод
 from typing import Any  # Любой тип
 from datetime import datetime  # Работа с датой и временем
-from math import copysign  # Знак числа
+from math import copysign, log10  # Знак числа
 
 import pandas as pd  # Конвертация бар в формат pandas DataFrame
 
@@ -26,7 +26,7 @@ class Symbol:
 
 class Bar:
     """Бар"""
-    def __init__(self, board: str, symbol: str, dataname: str, time_frame: str, date_time: datetime, open_: float, high: float, low: float, close: float, volume: int):
+    def __init__(self, board: str, symbol: str, dataname: str, time_frame: str, date_time: datetime, open_: int|float, high: int|float, low: int|float, close: int|float, volume: int|float|None):
         self.board = board  # Код режима торгов
         self.symbol = symbol  # Тикер
         self.dataname = dataname  # Название тикера
@@ -283,8 +283,17 @@ class Event:
 
 # Функции конвертации
 
+def bars_to_log(bars: list[Bar]) -> list[Bar]:
+    """Десятичный логарифм цен и объемов списка бар. Убирает фрактальность (спектральное расширение)"""
+    log_bars = bars.copy()  # Копируем список бар
+    for bar in log_bars:  # Пробегаемся по каждому бару
+        bar.open = log10(bar.open)  # Десятичный логарифм цены открытия (Open)
+        bar.high = log10(bar.high)  # Десятичный логарифм максимальной цены (High)
+        bar.low = log10(bar.low)  # Десятичный логарифм минимальной цены (Low)
+        bar.close = log10(bar.close)  # Десятичный логарифм цены закрытия (Close)
+        bar.volume = None if bar.volume in(None, 0) else log10(bar.volume)  # Если объемов нет, то None. Иначе, десятичный логарифм объемов (Volume)
+    return log_bars
+
 def bars_to_df(bars: list[Bar]) -> pd.DataFrame:
     """Перевод списка бар в pandas DataFrame с индексом по дате/времени бара"""
-    pd_bars = pd.DataFrame.from_records([bar.to_dict() for bar in bars], index='datetime')  # Переводим в pandas DataFrame
-    pd_bars['volume'] = pd_bars['volume'].astype(int)  # Объемы могут быть только целыми
-    return pd_bars
+    return pd.DataFrame.from_records([bar.to_dict() for bar in bars], index='datetime')  # Переводим в pandas DataFrame
