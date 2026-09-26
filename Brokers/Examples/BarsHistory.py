@@ -24,5 +24,7 @@ if __name__ == '__main__':  # Точка входа при запуске это
     print(bars[0])  # Первый бар
     print(bars[-1])  # Последний бар
     df_bars = bars_to_df(bars)  # Все бары в pandas DataFrame
+    print(df_bars.iloc[0])  # Первый бар
+    print(df_bars.iloc[-1])  # Последний бар
     print(df_bars)
     broker.close()  # Закрываем брокера
