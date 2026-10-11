@@ -1,4 +1,4 @@
-<iframe src="https://vkvideo.ru/video_ext.php?oid=-215710796&id=456239064&hash=47f47eeb72efc35c&hd=3" width="1280" height="720" allow="autoplay; encrypted-media; fullscreen; picture-in-picture; screen-wake-lock;" frameborder="0" allowfullscreen></iframe>
+[Видео](https://vkvideo.ru/video_ext.php?oid=-215710796&id=456239064&hash=47f47eeb72efc35c&hd=3)
 
 Расширим пример из предыдущего урока. Подключим вашего брокера, и посмотрим свободные средства и стоимость позиций на нём.
 

@@ -1,4 +1,4 @@
-<iframe src="https://vkvideo.ru/video_ext.php?oid=-215710796&id=456239062&hash=8bd49c5e09b870b6&hd=3" width="1280" height="720" allow="autoplay; encrypted-media; fullscreen; picture-in-picture; screen-wake-lock;" frameborder="0" allowfullscreen></iframe>
+[Видео](https://vkvideo.ru/video_ext.php?oid=-215710796&id=456239062&hash=8bd49c5e09b870b6&hd=3)
 
 Добро пожаловать в курс BackTrader: Быстрый старт!
 

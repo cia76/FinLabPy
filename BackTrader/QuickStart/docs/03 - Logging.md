@@ -1,4 +1,4 @@
-<iframe src="https://vkvideo.ru/video_ext.php?oid=-215710796&id=456239065&hash=60de8620df33165f&hd=3" width="1280" height="720" allow="autoplay; encrypted-media; fullscreen; picture-in-picture; screen-wake-lock;" frameborder="0" allowfullscreen></iframe>
+[Видео](https://vkvideo.ru/video_ext.php?oid=-215710796&id=456239065&hash=60de8620df33165f&hd=3)
 
 Одна из важнейших задач в автоматической торговле - это ведение журнала (лога).
 В лог можно записывать не только точки входа в позицию и выхода из нее, но и любые значимые для нас события. Например, получение котировок от брокера, прохождение логики торговой системы и многое другое.
