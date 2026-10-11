@@ -1,3 +1,5 @@
+<iframe src="https://vkvideo.ru/video_ext.php?oid=-215710796&id=456239065&hash=60de8620df33165f&hd=3" width="1280" height="720" allow="autoplay; encrypted-media; fullscreen; picture-in-picture; screen-wake-lock;" frameborder="0" allowfullscreen></iframe>
+
 Одна из важнейших задач в автоматической торговле - это ведение журнала (лога).
 В лог можно записывать не только точки входа в позицию и выхода из нее, но и любые значимые для нас события. Например, получение котировок от брокера, прохождение логики торговой системы и многое другое.
 Задача лога - документировать события так, чтобы они не прошли мимо нашего взгляда.
@@ -17,12 +19,21 @@ logger = logging.getLogger('Logging')  # Будем вести лог
 ## Настройка лога
 Лог можно гибко настроить через **logging.basicConfig**.
 
+```python
+    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',  # Формат сообщения
+                        datefmt='%d.%m.%Y %H:%M:%S',  # Формат даты
+                        level=logging.DEBUG,  # Уровень логируемых событий NOTSET/DEBUG/INFO/WARNING/ERROR/CRITICAL
+                        handlers=[logging.FileHandler('Logging.log', encoding='utf-8'), logging.StreamHandler()])  # Лог записываем в файл и выводим на консоль
+```
+
+### Формат вывода сообщений
 Формат (format) лога показывает, какие поля выводить в сообщение лога. 
 - Дата и время события (asctime)
 - Название лога (name)
 - Уровень события (levelname). Уровни событий будут расписаны ниже
 - Сообщение (message)
 
+### Формат вывода даты и времени
 Дату и время события (datefmt) можно выводить в привычном нам формате. Например, последняя секунда 2025 года будет показана как 31.12.2025 23:59:59
 
 ### Уровни событий
@@ -36,15 +47,8 @@ logger = logging.getLogger('Logging')  # Будем вести лог
 Обычно, для реальной торговли устанавливают уровень INFO. Тогда в логе будут события типа INFO/WARNING/ERROR/CRITICAL.
 Для отладки и тестирования торговых систем полезно установить уровень DEBUG. Тогда в лог попадут все события от DEBUG до CRITICAL.
 
-## Куда выводить лог
+### Куда выводить лог
 Также нужно указать, куда выводить лог (handlers). Самые распространенные это файл (FileHandler) и экран/консоль (StreamHandler). У файла указываем имя Logging.log и кодировку utf-8.
-
-```python
-    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',  # Формат сообщения
-                        datefmt='%d.%m.%Y %H:%M:%S',  # Формат даты
-                        level=logging.DEBUG,  # Уровень логируемых событий NOTSET/DEBUG/INFO/WARNING/ERROR/CRITICAL
-                        handlers=[logging.FileHandler('Logging.log', encoding='utf-8'), logging.StreamHandler()])  # Лог записываем в файл и выводим на консоль
-```
 
 ## Московское время
 Мы все живем в разных часовых поясах. А МосБиржа работает по московскому времени. Можно ли сделать так, чтобы лог записывался не по местному, а по московскому времени?
