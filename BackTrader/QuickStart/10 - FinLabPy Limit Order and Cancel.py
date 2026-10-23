@@ -29,12 +29,14 @@ class LimitCancel(bt.Strategy):
         self.logger.info(f'{self.data._name} ({bt.TimeFrame.Names[self.data.p.timeframe]} {self.data.p.compression}) {bt.num2date(self.data.datetime[0]):%d.%m.%Y %H:%M:%S} O:{self.data.open[0]} H:{self.data.high[0]} L:{self.data.low[0]} C:{self.data.close[0]} V:{int(self.data.volume[0])}')
         if not self.live:  # Если не в режиме реальной торговли
             return  # то выходим, дальше не продолжаем
-        if self.order and self.order.status == bt.Order.Submitted:  # Если заявка не исполнена (отправлена брокеру)
+        if self.order and self.order.status == bt.Order.Submitted:  # Если заявка отправлена брокеру, но им не принята
             return  # то ждем исполнения, выходим, дальше не продолжаем
         if self.position:  # Если позиция есть
+            if self.order.alive():  # Если заявка исполнена не полностью
+                self.cancel(self.order)  # то снимаем ее
             self.order = self.close()  # Заявка на закрытие позиции по рыночной цене
         else:  # Если позиции нет
-            if self.order and self.order.status == bt.Order.Accepted:  # Если заявка не исполнена (принята брокером)
+            if self.order and self.order.alive():  # Если заявка принята брокером и не исполнена
                 self.cancel(self.order)  # то снимаем ее
             limit_price = self.data.close[0] * (1 - self.p.limit_pct / 100)  # На n% ниже цены закрытия
             self.order = self.buy(exectype=bt.Order.Limit, price=limit_price)  # Лимитная заявка на покупку
