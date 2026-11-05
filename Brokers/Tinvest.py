@@ -176,7 +176,7 @@ class Tinvest(Broker):
             request = PostOrderRequest(instrument_id=symbol.broker_info['figi'], quantity=quantity, direction=direction,
                                        account_id=self.account_id, order_type=OrderType.ORDER_TYPE_MARKET, order_id=order_id)
             response: PostOrderResponse = self.provider.call_function(self.provider.stub_orders.PostOrder, request)  # Отправляем рыночную заявку брокеру
-            if response.execution_report_status == OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW:  # Должен вернуться статус "Новая"
+            if response.execution_report_status in (OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW, OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_FILL, OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_PARTIALLYFILL):  # Новая, а при мгновенном исполнении - исполнена или частично исполнена
                 order.id = response.order_id  # Уникальный код заявки
                 order.status = Order.Submitted  # Заявка отправлена брокеру
                 self.orders.append(order)  # Добавляем новую заявку в список заявок
@@ -186,7 +186,7 @@ class Tinvest(Broker):
             request = PostOrderRequest(instrument_id=symbol.broker_info['figi'], quantity=quantity, price=price, direction=direction,
                                        account_id=self.account_id, order_type=OrderType.ORDER_TYPE_LIMIT, order_id=order_id)
             response: PostOrderResponse = self.provider.call_function(self.provider.stub_orders.PostOrder, request)  # Отправляем лимитную заявку брокеру
-            if response.execution_report_status == OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW:  # Должен вернуться статус "Новая"
+            if response.execution_report_status in (OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_NEW, OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_FILL, OrderExecutionReportStatus.EXECUTION_REPORT_STATUS_PARTIALLYFILL):  # Новая, а при мгновенном исполнении - исполнена или частично исполнена
                 order.id = response.order_id  # Уникальный код заявки
                 order.status = Order.Submitted  # Заявка отправлена брокеру
                 self.orders.append(order)  # Добавляем новую заявку в список заявок
