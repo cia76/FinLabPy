@@ -198,7 +198,7 @@ class Tinvest(Broker):
                                            expiration_type=StopOrderExpirationType.STOP_ORDER_EXPIRATION_TYPE_GOOD_TILL_CANCEL,
                                            stop_order_type=StopOrderType.STOP_ORDER_TYPE_STOP_LOSS)
             response: PostStopOrderResponse = self.provider.call_function(self.provider.stub_stop_orders.PostStopOrder, request)  # Отправляем стоп заявку брокеру
-            order.id = response.order_request_id  # Уникальный код заявки
+            order.id = response.stop_order_id  # Уникальный код стоп заявки (по нему стоп заявка снимается и находится в списке активных заявок)
             order.status = Order.Submitted  # Заявка отправлена брокеру
             self.orders.append(order)  # Добавляем новую заявку в список заявок
             return True  # Операция завершилась успешно
@@ -209,7 +209,7 @@ class Tinvest(Broker):
                                            expiration_type=StopOrderExpirationType.STOP_ORDER_EXPIRATION_TYPE_GOOD_TILL_CANCEL,
                                            stop_order_type=StopOrderType.STOP_ORDER_TYPE_STOP_LIMIT)
             response: PostStopOrderResponse = self.provider.call_function(self.provider.stub_stop_orders.PostStopOrder, request)  # Отправляем стоп лимитную заявку брокеру
-            order.id = response.order_request_id  # Уникальный код заявки
+            order.id = response.stop_order_id  # Уникальный код стоп заявки (по нему стоп заявка снимается и находится в списке активных заявок)
             order.status = Order.Submitted  # Заявка отправлена брокеру
             self.orders.append(order)  # Добавляем новую заявку в список заявок
             return True  # Операция завершилась успешно
